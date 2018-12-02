@@ -81,12 +81,11 @@ func count23(instr string) (bool,bool) {
 			charcount[instr[i]]++
 		}
 		log.Println(charcount)
-		for k, v := range charcount {
-		    fmt.Printf("key[%s] value[%s]\n", k, v)
-			if v == 2 {
+		for k := range charcount {
+			if charcount[k] == 2 {
 				hastwo = true
 			}
-			if v == 3 {
+			if charcount[k] == 3 {
 				hasthree = true
 			}
 		}
