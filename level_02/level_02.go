@@ -5,11 +5,13 @@ import (
 	"bufio"
 	"os"
 	"log"
+	"container/list"
 )
 
 func main() {
 	fname := "input"
 	//fname := "input_test"
+	//fname := "input_test2"
 
 	file, err := os.Open(fname)
 	if err != nil {
@@ -20,9 +22,11 @@ func main() {
 	scanner := bufio.NewScanner(file)
 
 	var tuples, triples int
+	data := list.New()
 
 	for scanner.Scan() {
 		unparsed := scanner.Text()
+		data.PushBack(unparsed)
 		log.Println("Reading value", unparsed)
 		h2, h3 := count23(unparsed)
 		if(h2) {
@@ -33,7 +37,40 @@ func main() {
 		}
 	}
 
-	fmt.Println("Result", tuples * triples)
+	fmt.Println("Result1", tuples * triples)
+
+	result2 := ""
+	Outerloop:
+	for e := data.Front(); e != nil; e = e.Next() {
+		selfval := e.Value.(string)
+		for se := data.Front(); se != nil; se = se.Next() {
+			otherval := se.Value.(string)
+			if(selfval == otherval) {
+				continue
+			}
+			result2 = getdiff(selfval, otherval)
+			if(result2 != "") {
+				break Outerloop
+			}
+		}
+	}
+
+	fmt.Println("Result2", result2)
+}
+
+func getdiff(selfval, otherval string) (string) {
+	log.Println("Comparing", selfval, otherval)
+	diff := -1
+	for i := 0; i < len(selfval); i++ {
+		if selfval[i] != otherval[i] {
+			if(diff != -1) {
+				return ""
+			}
+			diff = i
+		}
+	}
+	result2 := selfval[:diff] + selfval[diff+1:]
+	return result2
 }
 
 func count23(instr string) (bool,bool) {
@@ -83,5 +120,23 @@ For example, if you see the following box IDs:
 Of these box IDs, four of them contain a letter which appears exactly twice, and three of them contain a letter which appears exactly three times. Multiplying these together produces a checksum of 4 * 3 = 12.
 
 What is the checksum for your list of box IDs?
+
+--- Part Two ---
+
+Confident that your list of box IDs is complete, you're ready to find the boxes full of prototype fabric.
+
+The boxes will have IDs which differ by exactly one character at the same position in both strings. For example, given the following box IDs:
+
+abcde
+fghij
+klmno
+pqrst
+fguij
+axcye
+wvxyz
+
+The IDs abcde and axcye are close, but they differ by two characters (the second and fourth). However, the IDs fghij and fguij differ by exactly one character, the third (h and u). Those must be the correct boxes.
+
+What letters are common between the two correct box IDs? (In the example above, this is found by removing the differing character from either ID, producing fgij.)
 
 */
