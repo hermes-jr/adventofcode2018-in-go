@@ -1,18 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"bufio"
-	"strconv"
-	"os"
-	"log"
 	"container/ring"
+	"fmt"
+	"log"
+	"os"
+	"strconv"
 )
 
 func main() {
 	file, err := os.Open("input1")
 	if err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 	defer file.Close()
 
@@ -25,13 +25,13 @@ func main() {
 	}
 
 	data := ring.New(totalLines)
-	file.Seek(0,0)
+	file.Seek(0, 0)
 	scanner = bufio.NewScanner(file)
 
 	for scanner.Scan() {
 		unparsed := scanner.Text()
 		fmt.Println("Reading value", unparsed)
-		z,err := strconv.ParseInt(unparsed, 10, 64)
+		z, err := strconv.ParseInt(unparsed, 10, 64)
 		fmt.Println("Adding to ring", z)
 		data.Value = z
 		data = data.Next()
@@ -41,7 +41,7 @@ func main() {
 	}
 
 	if err := scanner.Err(); err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 
 	fmt.Println("Printing data")
@@ -51,7 +51,7 @@ func main() {
 	for {
 		fmt.Println("Iteration through ring", data.Value)
 		lastfreq += data.Value.(int64)
-		if(seenfreqs[lastfreq]) {
+		if seenfreqs[lastfreq] {
 			fmt.Println("Result2: ", lastfreq)
 			break
 		}

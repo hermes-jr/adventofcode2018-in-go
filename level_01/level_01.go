@@ -1,17 +1,17 @@
 package main
 
 import (
-	"fmt"
 	"bufio"
-	"strconv"
-	"os"
+	"fmt"
 	"log"
+	"os"
+	"strconv"
 )
 
 func main() {
 	file, err := os.Open("input1")
 	if err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 	defer file.Close()
 
@@ -20,7 +20,7 @@ func main() {
 	for scanner.Scan() {
 		unparsed := scanner.Text()
 		fmt.Println("Reaad line: ", unparsed)
-		z,err := strconv.ParseInt(unparsed, 10, 64)
+		z, err := strconv.ParseInt(unparsed, 10, 64)
 		if err != nil {
 			// do nothin
 		}
@@ -31,7 +31,7 @@ func main() {
 	fmt.Println("Result: ", freq)
 
 	if err := scanner.Err(); err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 }
 

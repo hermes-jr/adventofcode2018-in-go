@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"bufio"
-	"os"
-	"log"
 	"container/list"
+	"fmt"
+	"log"
+	"os"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 
 	file, err := os.Open(fname)
 	if err != nil {
-	    log.Fatal(err)
+		log.Fatal(err)
 	}
 	defer file.Close()
 
@@ -29,27 +29,27 @@ func main() {
 		data.PushBack(unparsed)
 		log.Println("Reading value", unparsed)
 		h2, h3 := count23(unparsed)
-		if(h2) {
+		if h2 {
 			tuples++
 		}
-		if(h3) {
+		if h3 {
 			triples++
 		}
 	}
 
-	fmt.Println("Result1", tuples * triples)
+	fmt.Println("Result1", tuples*triples)
 
 	result2 := ""
-	Outerloop:
+Outerloop:
 	for e := data.Front(); e != nil; e = e.Next() {
 		selfval := e.Value.(string)
 		for se := data.Front(); se != nil; se = se.Next() {
 			otherval := se.Value.(string)
-			if(selfval == otherval) {
+			if selfval == otherval {
 				continue
 			}
 			result2 = getdiff(selfval, otherval)
-			if(result2 != "") {
+			if result2 != "" {
 				break Outerloop
 			}
 		}
@@ -58,12 +58,12 @@ func main() {
 	fmt.Println("Result2", result2)
 }
 
-func getdiff(selfval, otherval string) (string) {
+func getdiff(selfval, otherval string) string {
 	log.Println("Comparing", selfval, otherval)
 	diff := -1
 	for i := 0; i < len(selfval); i++ {
 		if selfval[i] != otherval[i] {
-			if(diff != -1) {
+			if diff != -1 {
 				return ""
 			}
 			diff = i
@@ -73,25 +73,24 @@ func getdiff(selfval, otherval string) (string) {
 	return result2
 }
 
-func count23(instr string) (bool,bool) {
-		var hastwo,hasthree bool
+func count23(instr string) (bool, bool) {
+	var hastwo, hasthree bool
 
-		charcount := map[byte]int{}
-		for i := 0; i < len(instr); i++ {
-			charcount[instr[i]]++
+	charcount := map[byte]int{}
+	for i := 0; i < len(instr); i++ {
+		charcount[instr[i]]++
+	}
+	log.Println(charcount)
+	for k := range charcount {
+		if charcount[k] == 2 {
+			hastwo = true
 		}
-		log.Println(charcount)
-		for k := range charcount {
-			if charcount[k] == 2 {
-				hastwo = true
-			}
-			if charcount[k] == 3 {
-				hasthree = true
-			}
+		if charcount[k] == 3 {
+			hasthree = true
 		}
-		return hastwo, hasthree
+	}
+	return hastwo, hasthree
 }
-
 
 /*
 --- Day 2: Inventory Management System ---
