@@ -25,6 +25,7 @@ func main() {
 	//rtm := 0
 	//btm := 0
 	field := make(map[point]*list.List)
+	seenIds := make(map[int]bool)
 
 	for scanner.Scan() {
 		unparsed := scanner.Text()
@@ -39,6 +40,7 @@ func main() {
 		xs, _ := strconv.Atoi(match[4])
 		ys, _ := strconv.Atoi(match[5])
 
+		seenIds[id] = false
 		for x := xc; x < xc+xs; x++ {
 			for y := yc; y < yc+ys; y++ {
 				if field[point{x: x, y: y}] == nil {
@@ -57,9 +59,21 @@ func main() {
 	for _, v := range field {
 		if v.Len() > 1 {
 			result++
+			for i := v.Front(); i != nil; i = i.Next() {
+				seenIds[i.Value.(int)] = true
+			}
 		}
 	}
 	fmt.Println("Result", result)
+
+	var result2 int
+	log.Println(seenIds)
+	for k, v := range seenIds {
+		if !v {
+			result2 = k
+		}
+	}
+	fmt.Println("Result2", result2)
 }
 
 type point struct {
@@ -113,5 +127,13 @@ Visually, these claim the following areas:
 The four square inches marked with X are claimed by both 1 and 2. (Claim 3, while adjacent to the others, does not overlap either of them.)
 
 If the Elves all proceed with their own plans, none of them will have enough fabric. How many square inches of fabric are within two or more claims?
+
+--- Part Two ---
+
+Amidst the chaos, you notice that exactly one claim doesn't overlap by even a single square inch of fabric with any other claim. If you can somehow draw attention to it, maybe the Elves will be able to make Santa's suit after all!
+
+For example, in the claims above, only claim 3 is intact after all claims are made.
+
+What is the ID of the only claim that doesn't overlap?
 
 */
