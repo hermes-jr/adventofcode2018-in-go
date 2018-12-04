@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// doh. wrong solution. remake
 type Record struct {
 	ts     time.Time
 	action string
@@ -28,7 +29,7 @@ func (r Records) Less(i, j int) bool { return r[i].ts.Before(r[j].ts) }
 
 func main() {
 	fname := "input"
-	//fname = "input_test"
+	fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
@@ -68,7 +69,7 @@ func main() {
 			re := regexp.MustCompile("^Guard #(\\d+) begins shift$")
 			match := re.FindStringSubmatch(action)
 			zz, _ := strconv.Atoi(match[1])
-			currentGuardId = zz
+			currentGuardId = zz // heh, they're primes
 			asleep = false
 		}
 
@@ -82,11 +83,11 @@ func main() {
 
 		// Cover every minute of given timespan
 		for step := rangeStart; step.Before(rangeEnd); {
-			fmt.Println("Instant", step)
+			fmt.Println("Instant", step, currentGuardId, asleep)
 			data[step] = ShiftCell{currentGuardId, asleep}
 
 			if step.Minute() == 59 {
-				step = step.Add(time.Hour*23 + time.Minute)
+				step = step.Add(time.Duration(time.Hour*23 + time.Minute))
 			} else {
 				step = step.Add(time.Duration(time.Minute))
 			}
@@ -94,6 +95,13 @@ func main() {
 	}
 
 	fmt.Println(data)
+	guardsTotalSleep := make(map[int]int)
+	for _, v := range data {
+		if !v.awake {
+			guardsTotalSleep[v.guard]++
+		}
+	}
+	fmt.Println(guardsTotalSleep)
 }
 
 /*
