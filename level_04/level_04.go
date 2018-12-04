@@ -4,24 +4,31 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
+	"strconv"
 	"time"
 )
 
 type Record struct {
-	Ts     time.Time
+	ts     time.Time
 	action string
+}
+
+type ShiftCell struct {
+	guard int
+	awake bool
 }
 
 type Records []Record
 
 func (r Records) Len() int           { return len(r) }
 func (r Records) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
-func (r Records) Less(i, j int) bool { return r[i].Ts.Before(r[j].Ts) }
+func (r Records) Less(i, j int) bool { return r[i].ts.Before(r[j].ts) }
 
 func main() {
 	fname := "input"
-	// fname = "input_test"
+	//fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
@@ -37,13 +44,56 @@ func main() {
 		action := unparsed[19:]
 		ts, _ := time.Parse("2006-01-02 15:04", uts)
 		fmt.Println(ts, action)
-		records = append(records, Record{Ts: ts, action: action})
+		records = append(records, Record{ts: ts, action: action})
 	}
 
 	sort.Sort(records)
-	for _, d := range records {
-		fmt.Println(d)
+
+	tStart := records[0].ts
+	tEnd := records[len(records)-1].ts.Add(24 * time.Hour).Truncate(24 * time.Hour) // Not included
+	fmt.Println("Range", tStart, tEnd)
+
+	data := make(map[time.Time]ShiftCell)
+	currentGuardId := 0
+	asleep := false
+
+	for iter := 0; iter < len(records)-1; iter++ {
+		action := records[iter].action
+		if action == "falls asleep" {
+			asleep = true
+		} else if action == "wakes up" {
+			asleep = false
+		} else {
+			// Guard #2797 begins shift
+			re := regexp.MustCompile("^Guard #(\\d+) begins shift$")
+			match := re.FindStringSubmatch(action)
+			zz, _ := strconv.Atoi(match[1])
+			currentGuardId = zz
+			asleep = false
+		}
+
+		rangeStart := records[iter].ts
+		var rangeEnd time.Time
+		if iter < len(records)-1 {
+			rangeEnd = records[iter+1].ts
+		} else {
+			rangeEnd = tEnd.Add(24 * time.Hour).Truncate(24 * time.Hour)
+		}
+
+		// Cover every minute of given timespan
+		for step := rangeStart; step.Before(rangeEnd); {
+			fmt.Println("Instant", step)
+			data[step] = ShiftCell{currentGuardId, asleep}
+
+			if step.Minute() == 59 {
+				step = step.Add(time.Hour*23 + time.Minute)
+			} else {
+				step = step.Add(time.Duration(time.Minute))
+			}
+		}
 	}
+
+	fmt.Println(data)
 }
 
 /*
