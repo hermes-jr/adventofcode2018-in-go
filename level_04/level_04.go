@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-// doh. wrong solution. remake
 type Record struct {
 	ts     time.Time
 	action string
