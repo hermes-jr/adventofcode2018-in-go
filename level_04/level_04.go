@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"fmt"
 	"os"
 	"regexp"
@@ -29,7 +30,7 @@ func (r Records) Less(i, j int) bool { return r[i].ts.Before(r[j].ts) }
 
 func main() {
 	fname := "input"
-	fname = "input_test"
+	//fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
@@ -55,22 +56,26 @@ func main() {
 	fmt.Println("Range", tStart, tEnd)
 
 	data := make(map[time.Time]ShiftCell)
+	guardsTotalSleep := make(map[int]*list.List)
 	currentGuardId := 0
-	asleep := false
+	awake := true
 
 	for iter := 0; iter < len(records)-1; iter++ {
 		action := records[iter].action
 		if action == "falls asleep" {
-			asleep = true
+			awake = false
 		} else if action == "wakes up" {
-			asleep = false
+			awake = true
 		} else {
 			// Guard #2797 begins shift
 			re := regexp.MustCompile("^Guard #(\\d+) begins shift$")
 			match := re.FindStringSubmatch(action)
 			zz, _ := strconv.Atoi(match[1])
 			currentGuardId = zz // heh, they're primes
-			asleep = false
+			awake = true
+			if guardsTotalSleep[currentGuardId] == nil {
+				guardsTotalSleep[currentGuardId] = list.New()
+			}
 		}
 
 		rangeStart := records[iter].ts
@@ -83,8 +88,8 @@ func main() {
 
 		// Cover every minute of given timespan
 		for step := rangeStart; step.Before(rangeEnd); {
-			fmt.Println("Instant", step, currentGuardId, asleep)
-			data[step] = ShiftCell{currentGuardId, asleep}
+			fmt.Println("Instant", step, currentGuardId, awake)
+			data[step] = ShiftCell{currentGuardId, awake}
 
 			if step.Minute() == 59 {
 				step = step.Add(time.Duration(time.Hour*23 + time.Minute))
@@ -94,14 +99,29 @@ func main() {
 		}
 	}
 
+	var longestNapGuardId, longestNap int
 	fmt.Println(data)
-	guardsTotalSleep := make(map[int]int)
-	for _, v := range data {
+	for k, v := range data {
 		if !v.awake {
-			guardsTotalSleep[v.guard]++
+			guardsTotalSleep[v.guard].PushBack(k)
+			if guardsTotalSleep[v.guard].Len() > longestNap {
+				longestNap = guardsTotalSleep[v.guard].Len()
+				longestNapGuardId = v.guard
+			}
 		}
 	}
-	fmt.Println(guardsTotalSleep)
+
+	var bs, bsi int
+	var mins [60]int
+	for gl := guardsTotalSleep[longestNapGuardId].Front(); gl != nil; gl = gl.Next() {
+		ct := gl.Value.(time.Time)
+		mins[ct.Minute()]++
+		if mins[ct.Minute()] > bs {
+			bs = mins[ct.Minute()]
+			bsi = ct.Minute()
+		}
+	}
+	fmt.Println("Result 1", bsi*longestNapGuardId)
 }
 
 /*
@@ -157,4 +177,13 @@ In the example above, Guard #10 spent the most minutes asleep, a total of 50 min
 While this example listed the entries in chronological order, your entries are in the order you found them. You'll need to organize them before they can be analyzed.
 
 What is the ID of the guard you chose multiplied by the minute you chose? (In the above example, the answer would be 10 * 24 = 240.)
+
+--- Part Two ---
+
+Strategy 2: Of all guards, which guard is most frequently asleep on the same minute?
+
+In the example above, Guard #99 spent minute 45 asleep more than any other guard or minute - three times in total. (In all other cases, any guard spent any minute asleep at most twice.)
+
+What is the ID of the guard you chose multiplied by the minute you chose? (In the above example, the answer would be 99 * 45 = 4455.)
+
 */
