@@ -111,17 +111,39 @@ func main() {
 		}
 	}
 
-	var bs, bsi int
+	var biggestSleepCountSeen, biggestSleepCountIdx int
 	var mins [60]int
 	for gl := guardsTotalSleep[longestNapGuardId].Front(); gl != nil; gl = gl.Next() {
 		ct := gl.Value.(time.Time)
 		mins[ct.Minute()]++
-		if mins[ct.Minute()] > bs {
-			bs = mins[ct.Minute()]
-			bsi = ct.Minute()
+		if mins[ct.Minute()] > biggestSleepCountSeen {
+			biggestSleepCountSeen = mins[ct.Minute()]
+			biggestSleepCountIdx = ct.Minute()
 		}
 	}
-	fmt.Println("Result 1", bsi*longestNapGuardId)
+	fmt.Println("Result 1", biggestSleepCountIdx*longestNapGuardId)
+
+	var r2guardId, r2biggestSleepCount, r2biggestSleepCountIdx int
+	for k, v := range guardsTotalSleep {
+		var bs, bsi int
+		var mins [60]int
+		for gl := v.Front(); gl != nil; gl = gl.Next() {
+			ct := gl.Value.(time.Time)
+			mins[ct.Minute()]++
+			if mins[ct.Minute()] > bs {
+				bs = mins[ct.Minute()]
+				bsi = ct.Minute()
+			}
+		}
+		if bs > r2biggestSleepCount {
+			r2biggestSleepCount = bs
+			r2biggestSleepCountIdx = bsi
+			r2guardId = k
+		}
+	}
+
+	fmt.Println("Result 2", r2biggestSleepCountIdx*r2guardId)
+
 }
 
 /*
