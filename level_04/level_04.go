@@ -111,9 +111,27 @@ func main() {
 		}
 	}
 
+	_, biggestSleepCountIdx := getModeMinute(guardsTotalSleep[longestNapGuardId])
+	fmt.Println("Result 1", biggestSleepCountIdx*longestNapGuardId)
+
+	var r2guardId, r2biggestSleepCount, r2biggestSleepCountIdx int
+	for k, v := range guardsTotalSleep {
+		biggestSleepCountSeen, biggestSleepCountIdx := getModeMinute(v)
+		if biggestSleepCountSeen > r2biggestSleepCount {
+			r2biggestSleepCount = biggestSleepCountSeen
+			r2biggestSleepCountIdx = biggestSleepCountIdx
+			r2guardId = k
+		}
+	}
+
+	fmt.Println("Result 2", r2biggestSleepCountIdx*r2guardId)
+
+}
+
+func getModeMinute(v *list.List) (int, int) {
 	var biggestSleepCountSeen, biggestSleepCountIdx int
 	var mins [60]int
-	for gl := guardsTotalSleep[longestNapGuardId].Front(); gl != nil; gl = gl.Next() {
+	for gl := v.Front(); gl != nil; gl = gl.Next() {
 		ct := gl.Value.(time.Time)
 		mins[ct.Minute()]++
 		if mins[ct.Minute()] > biggestSleepCountSeen {
@@ -121,29 +139,7 @@ func main() {
 			biggestSleepCountIdx = ct.Minute()
 		}
 	}
-	fmt.Println("Result 1", biggestSleepCountIdx*longestNapGuardId)
-
-	var r2guardId, r2biggestSleepCount, r2biggestSleepCountIdx int
-	for k, v := range guardsTotalSleep {
-		var bs, bsi int
-		var mins [60]int
-		for gl := v.Front(); gl != nil; gl = gl.Next() {
-			ct := gl.Value.(time.Time)
-			mins[ct.Minute()]++
-			if mins[ct.Minute()] > bs {
-				bs = mins[ct.Minute()]
-				bsi = ct.Minute()
-			}
-		}
-		if bs > r2biggestSleepCount {
-			r2biggestSleepCount = bs
-			r2biggestSleepCountIdx = bsi
-			r2guardId = k
-		}
-	}
-
-	fmt.Println("Result 2", r2biggestSleepCountIdx*r2guardId)
-
+	return biggestSleepCountSeen, biggestSleepCountIdx
 }
 
 /*
