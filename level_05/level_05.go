@@ -24,13 +24,12 @@ func main() {
 			delta := int(data[i]) - int(data[i+1])
 			if delta == 32 || delta == -32 {
 				//fmt.Println("Opposite charged sequence found\n", data, "len", len(data), "\nremoving", i, ":", data[i], i+1, ":", data[i+1])
-				data = append(data[:i], data[i+2:]...) // removing two elements in the middle
+				data = append(data[:i], data[i+2:]...)
 				lastIdx -= 2
 				lenChange = true
 			}
 		}
 		//fmt.Println("After purge cycle")
-		fmt.Println(string(data), "len", len(data)) // len() returns actual len + 1 here, wtf?
 		if !lenChange {
 			fmt.Println("Result1", len(data))
 			break
