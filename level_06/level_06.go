@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 )
 
@@ -18,12 +19,27 @@ func (data Point) String() string {
 	return fmt.Sprintf("{%v %v:%v}", string(data.name), data.x, data.y)
 }
 
+type DistancePair struct {
+	dist int
+	name byte
+}
+
+func (data DistancePair) String() string {
+	return fmt.Sprintf("{%v %v}", string(data.name), data.dist)
+}
+
+type DistancePairs []DistancePair
+
+func (p DistancePairs) Len() int           { return len(p) }
+func (p DistancePairs) Less(i, j int) bool { return p[i].dist < p[j].dist }
+func (p DistancePairs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
 type Points []Point
 type Field [][]uint8
 
 func main() {
 	fname := "input"
-	fname = "input_test"
+	//fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
@@ -72,26 +88,58 @@ func main() {
 	}
 
 	// find out who's on the frontier - for those elements areas are infinite
-	var nonInfinites []byte
+	nonInfinites := make(map[byte]int)
+	normalizedData := Points{}
 	for _, v := range inData {
 		v.x -= minX
 		v.y -= minY
 		region[v.x][v.y] = v.name
+		normalizedData = append(normalizedData, v)
 		if !(v.x == 0 || v.x == fw-1 || v.y == 0 || v.y == fh-1) {
-			nonInfinites = append(nonInfinites, v.name)
+			nonInfinites[v.name] = 0
 		}
 	}
+	inData = normalizedData
 	printField(region)
-	fmt.Println(string(nonInfinites))
+	fmt.Println("Non-inf", nonInfinites)
 
-	// n^2 is bad. but... make it work first
-	/*
-		for i := 0; i < len(nonInfinites); i++ {
-			for j = i + 1; j < len(nonInfinites); j++ {
-				// get
+	// n^3 is bad. but... make it work first
+	for i := 0; i < len(region); i++ {
+		for j := 0; j < len(region[i]); j++ {
+			distData := DistancePairs{}
+			// find closest point or multiple points
+			for _, v := range inData {
+				dist := absint(v.x-i) + absint(v.y-j)
+				distData = append(distData, DistancePair{dist, v.name})
+			}
+			sort.Sort(distData)
+			//fmt.Println("At point", i, j, "distances are", distData)
+			if distData[0].dist == distData[1].dist {
+				region[i][j] = 35
+			} else {
+				region[i][j] = distData[0].name
+				nonInfinites[distData[0].name]++
 			}
 		}
-	*/
+	}
+
+	printField(region)
+	fmt.Println("Non-inf updated", nonInfinites)
+
+	result1 := 0
+	for _, v := range nonInfinites {
+		if v > result1 {
+			result1 = v
+		}
+	}
+	fmt.Println("Result1", result1)
+}
+
+func absint(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 func printField(data Field) {
@@ -131,29 +179,27 @@ Your goal is to find the size of the largest area that isn't infinite. For examp
 
 If we name these coordinates A through F, we can draw them on a grid, putting 0,0 at the top left:
 
-..........
-.A........
-..........
-........C.
-...D......
-.....E....
-.B........
-..........
-..........
-........F.
+A.......
+........
+.......C
+..D.....
+....E...
+B.......
+........
+........
+.......F
 
 This view is partial - the actual grid extends infinitely in all directions. Using the Manhattan distance, each location's closest coordinate can be determined, shown here in lowercase:
 
-aaaaa.cccc
-aAaaa.cccc
-aaaddecccc
-aadddeccCc
-..dDdeeccc
-bb.deEeecc
-bBb.eeee..
-bbb.eeefff
-bbb.eeffff
-bbb.ffffFf
+Aaaa.ccc
+aaddeccc
+adddeccC
+.dDdeecc
+b.deEeec
+Bb.eeee.
+bb.eeeff
+bb.eefff
+bb.ffffF
 
 Locations shown as . are equally far from two or more coordinates, and so they don't count as being closest to any.
 
