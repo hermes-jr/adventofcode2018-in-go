@@ -1,6 +1,7 @@
 package main
 
 import (
+	"container/list"
 	"fmt"
 	"io/ioutil"
 )
@@ -15,16 +16,15 @@ func main() {
 
 	data, _ := ioutil.ReadFile(fname)
 	fmt.Println(data, "len", len(data))
-	cloneOfOriginal := make([]byte, len(data))
-	copy(cloneOfOriginal, data)
+	copy(data, data)
 
-	result1 := foldPolymer(data)
+	result1 := getFoldedPolymerSize(data)
 	fmt.Println("Result1", result1)
 
-	smallestPolymerSeen := len(cloneOfOriginal)
+	smallestPolymerSeen := len(data)
 	for letter := byte(65); letter <= byte(90); letter++ {
-		withoutSomeAtom := make([]byte, len(cloneOfOriginal))
-		copy(withoutSomeAtom, cloneOfOriginal)
+		withoutSomeAtom := make([]byte, len(data))
+		copy(withoutSomeAtom, data)
 		//fmt.Println("Testing", letter, string(byte(letter)))
 
 		changed := false
@@ -41,7 +41,7 @@ func main() {
 			}
 		}
 		if changed {
-			afterFold := foldPolymer(withoutSomeAtom)
+			afterFold := getFoldedPolymerSize(withoutSomeAtom)
 			//fmt.Println("With no", string(letter), "size is", afterFold)
 			if afterFold < smallestPolymerSeen {
 				smallestPolymerSeen = afterFold
@@ -51,24 +51,23 @@ func main() {
 	fmt.Println("Result2", smallestPolymerSeen)
 }
 
-func foldPolymer(polymer []byte) int {
-	for lenChange := false; ; lenChange = false {
-		lastIdx := len(polymer) - 1
-		for i := 0; i < lastIdx; i++ {
-			//fmt.Println("Processing", i, i+1)
-			delta := int(polymer[i]) - int(polymer[i+1])
-			if delta == 32 || delta == -32 {
-				//fmt.Println("Opposite charged sequence found\n", data, "len", len(data), "\nremoving", i, ":", data[i], i+1, ":", data[i+1])
-				polymer = append(polymer[:i], polymer[i+2:]...)
-				lastIdx -= 2
-				lenChange = true
-			}
+func getFoldedPolymerSize(polymer []byte) int {
+	stack := list.New()
+
+	// one-pass
+	for _, v := range polymer {
+		if stack.Len() == 0 {
+			stack.PushBack(v)
+			continue
 		}
-		//fmt.Println("After purge cycle")
-		if !lenChange {
-			return len(polymer)
+		last := stack.Back().Value.(byte)
+		if last == (v+32) || last == (v-32) {
+			stack.Remove(stack.Back())
+		} else {
+			stack.PushBack(v)
 		}
 	}
+	return stack.Len()
 }
 
 /*
