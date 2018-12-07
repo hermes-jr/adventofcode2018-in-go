@@ -48,7 +48,7 @@ func main() {
 	var result []byte
 	for {
 		if len(steps) == 0 {
-			// Available step candidates depleted
+			// Available step candidates queue depleted
 			break
 		}
 		availableSteps := getNextAvailableStepsSorted(steps)
@@ -82,7 +82,6 @@ func getNextAvailableStepsSorted(data map[int][]int) []int {
 func removeStepFromDependencies(data map[int][]int, step int) {
 	for zv, dataStepDependencies := range data {
 		for i, dependency := range dataStepDependencies {
-			fmt.Println("comparing", dependency, step)
 			if dependency == step {
 				fmt.Println(dataStepDependencies)
 				data[zv] = append(dataStepDependencies[:i], dataStepDependencies[i+1:]...)
