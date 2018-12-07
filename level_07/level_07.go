@@ -46,15 +46,8 @@ func main() {
 	fmt.Println("Steps copy for pt.2", stepsCopy)
 
 	var result []byte
-	for {
-		if len(steps) == 0 {
-			// Available step candidates queue depleted
-			break
-		}
+	for len(steps) > 0 {
 		availableSteps := getNextAvailableStepsSorted(steps)
-		if len(availableSteps) == 0 {
-			break
-		}
 		fmt.Println("Available steps", availableSteps)
 		for _, nextStep := range availableSteps {
 			result = append(result, byte(nextStep))
