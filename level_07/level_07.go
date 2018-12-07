@@ -3,30 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/thcyron/graphs"
 	"os"
 	"sort"
 )
 
-//ACBEDSZULXKTIMNFGYWJVPOHRQ
-
-/*
-CDASZMULBEXKTINFGYWJVPOHRQ
-CDASZULXEIWKNBTFMGYJVPOHRQ
-EASCDZULXKBTINFMGYWJVPOHRQ
-CDEASZULINXKBTFMGYWJVPOHRQ
-ULAXCDKESZINBTFMGWYJVPOHRQ
-ULCASDZXKBETINFYWJMGVPOHRQ
-CBULDYAXKESZIWTNFJMGVPOHRQ
-AULXCDSZEIWKBTNFYJMGVPOHRQ
-AULXECDSZIWKBTNFMGYJVPOHRQ
-ASCDZMEULXKBTINFGYWJVPOHRQ
-ACBEDSZULXKTIMYWNFGJVPOHRQ
-ASCDZULXKBETINFMGYWJVPOHRQ
-ACBEDSZULXKTIMNFGYWJVPOHRQ
-ACBEDSZULXKTINFMGYWJVPOHRQ
-ECDASZULIXWNBKTYFJMGVPOHRQ
-*/
 func main() {
 	fname := "input"
 	//fname = "input_test"
@@ -36,82 +16,66 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 
-	graph := graphs.NewDigraph()
+	unhd := make(map[int][]int)
 
-	toCount := make(map[string]int)
-	fromCount := make(map[string]int)
 	for scanner.Scan() {
 		inputLine := scanner.Text()
 		fmt.Println(inputLine)
-		la := inputLine[5:6]
-		lb := inputLine[36:37]
-		fmt.Printf("%v -> %v\n", la, lb)
-
-		countPaths(toCount, fromCount, lb, la)
-		toCount[lb]++
-		fromCount[la]++
-		graph.AddEdge(lb, la, float64(byte(la[0])))
-	}
-
-	fmt.Println("toCcount", toCount)
-	fmt.Println("fromCount", fromCount)
-	graph.Dump()
-
-	var firstVertex []string
-	var lastVertex string
-	for k, v := range toCount {
-		if v == 0 {
-			firstVertex = append(firstVertex, k)
+		// Step N must be finished before step J can begin.
+		lb := int(inputLine[5])
+		la := int(inputLine[36])
+		fmt.Printf("%v -> needs -> %v\n", string(la), string(lb))
+		if _, ok := unhd[lb]; !ok {
+			unhd[lb] = []int{}
 		}
-		if fromCount[k] == 0 {
-			lastVertex = k
+		if _, ok := unhd[la]; !ok {
+			unhd[la] = []int{}
 		}
+		unhd[la] = append(unhd[la], lb)
 	}
-	fmt.Printf("First and last instructions %v -> ... -> %v\n", firstVertex, lastVertex)
+	fmt.Println(unhd)
 
-	var result1 []string
-	result1 = printPart1(graph, lastVertex, fromCount, result1)
-	fmt.Print("Result1: ")
-	for i := len(result1) - 1; i >= 0; i-- {
-		fmt.Print(result1[i])
-	}
-	fmt.Println()
-}
-
-func countPaths(toCount map[string]int, fromCount map[string]int, lb string, la string) {
-	if _, ok := toCount[lb]; !ok {
-		toCount[lb] = 0
-	}
-	if _, ok := toCount[la]; !ok {
-		toCount[la] = 0
-	}
-	if _, ok := fromCount[lb]; !ok {
-		fromCount[lb] = 0
-	}
-	if _, ok := fromCount[la]; !ok {
-		fromCount[la] = 0
-	}
-}
-
-func printPart1(graph *graphs.Graph, node string, tc map[string]int, res []string) []string {
-	if tc[node] == 0 {
-		res = append(res, node)
-		fmt.Println("Cur res", res)
-		var children []string
-		for v := range graph.HalfedgesIter(node) {
-			children = append(children, v.End.(string))
+	var result []byte
+	//outerloop:
+	for {
+		if len(unhd) == 0 {
+			// Available step candidates depleted
+			break
 		}
-		orderedChildren := sort.StringSlice(children)
-		fmt.Printf("For node %v children %v | hist: %v\n", node, orderedChildren, tc)
-		for i := len(orderedChildren) - 1; i >= 0; i-- {
-			z := orderedChildren[i]
-			tc[z]--
-			if tc[z] >= 0 {
-				res = printPart1(graph, z, tc, res)
+		var availableSteps []int
+		fmt.Print("Next available steps unsorted:")
+		for k, v := range unhd {
+			if len(v) == 0 {
+				availableSteps = append(availableSteps, k)
+				fmt.Print(string(byte(k)))
 			}
+		} // 65 - A, 69 - E
+		fmt.Println()
+		sort.Ints(availableSteps)
+		if len(availableSteps) == 0 {
+			break
+		}
+		fmt.Println("Available steps", availableSteps)
+		for _, nextStep := range availableSteps {
+			result = append(result, byte(nextStep))
+			// remove current dependency from others
+			fmt.Println("Going to remove", nextStep, "from deps", unhd)
+			for zv, survivorStepDeps := range unhd {
+				for i, sv := range survivorStepDeps {
+					fmt.Println("comparing", sv, nextStep)
+					if sv == nextStep {
+						fmt.Println(survivorStepDeps)
+						unhd[zv] = append(survivorStepDeps[:i], survivorStepDeps[i+1:]...)
+					}
+				}
+				fmt.Println("After cleanup:", unhd)
+			}
+			//continue outerloop
+			delete(unhd, nextStep)
+			break
 		}
 	}
-	return res
+	fmt.Println("Result1", string(result))
 }
 
 /*
