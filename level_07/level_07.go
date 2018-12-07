@@ -9,17 +9,19 @@ import (
 
 func main() {
 	fname := "input" // ACBDESULXKYZIMNTFGWJVPOHRQ
-	//fname = "input_test" // CABDFE
-
-	// 65 - A, 69 - E
+	//	fname = "input_test" // CABDFE
+	timelag := 60
+	//	timelag = 0
+	workers := 5
+	//	workers = 2
 
 	file, _ := os.Open(fname)
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 
-	steps := make(map[int][]int)
-	stepsCopy := make(map[int][]int)
+	steps := make(map[int][]int)     // [StepID]:[Dependencies]
+	stepsCopy := make(map[int][]int) // steps will be mutated, saving current state for part 2
 
 	for scanner.Scan() {
 		inputLine := scanner.Text()
@@ -51,7 +53,6 @@ func main() {
 		fmt.Println("Available steps", availableSteps)
 		for _, nextStep := range availableSteps {
 			result = append(result, byte(nextStep))
-			// remove current dependency from others
 			fmt.Println("Going to remove", nextStep, "from deps", steps)
 			removeStepFromDependencies(steps, nextStep)
 			delete(steps, nextStep)
@@ -59,12 +60,52 @@ func main() {
 		}
 	}
 	fmt.Println("Result1", string(result))
+
+	steps = stepsCopy
+
+	deadlines := make(map[int]int) // [StepID]:endOfConstructionTime
+	freeworkers := workers
+
+	elapsedTime := 0
+	for ; len(steps) > 0; elapsedTime++ {
+		for k, v := range deadlines {
+			if elapsedTime == v {
+				// remove current dependency from others
+				fmt.Println("Going to remove", k, "from deps", steps)
+				removeStepFromDependencies(steps, k)
+				delete(steps, k) // step done
+				delete(deadlines, k)
+				freeworkers++
+			}
+		}
+
+		if freeworkers == 0 {
+			continue // nobody free to take care of things at the moment
+		}
+		availableSteps := getNextAvailableStepsSortedDl(steps, deadlines)
+		availableSteps = availableSteps[0:minOf(freeworkers, len(availableSteps))] // assign to as many free workers as possible
+		freeworkers -= len(availableSteps)                                         // mark them busy
+
+		fmt.Printf("time %v Available steps: %v, deadlines: %v\n", elapsedTime, availableSteps, deadlines)
+		// place in execution queue
+		for _, nextStep := range availableSteps {
+			deadlines[nextStep] = elapsedTime + timelag + (nextStep - 64) // ascii A = 65 but A costs 1 second; Z = 90, costs 26
+		}
+	}
+	fmt.Println("Result2", elapsedTime-1)
 }
 
+// Returns steps from pool with no required dependencies
 func getNextAvailableStepsSorted(data map[int][]int) []int {
+	return getNextAvailableStepsSortedDl(data, make(map[int]int))
+}
+
+// Returns steps from pool with no required dependencies
+// and which are not currently being built.
+func getNextAvailableStepsSortedDl(data map[int][]int, deadlines map[int]int) []int {
 	var availableSteps []int
 	for k, v := range data {
-		if len(v) == 0 {
+		if _, ok := deadlines[k]; !ok && len(v) == 0 {
 			availableSteps = append(availableSteps, k)
 		}
 	}
@@ -72,6 +113,16 @@ func getNextAvailableStepsSorted(data map[int][]int) []int {
 	return availableSteps
 }
 
+// Returns lesser of two int values
+func minOf(n1 int, n2 int) int {
+	if n1 <= n2 {
+		return n1
+	}
+	return n2
+}
+
+// Iterates through data pool and removes given step from
+// the list of dependencies of other steps
 func removeStepFromDependencies(data map[int][]int, step int) {
 	for zv, dataStepDependencies := range data {
 		for i, dependency := range dataStepDependencies {
