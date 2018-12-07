@@ -5,18 +5,38 @@ import (
 	"fmt"
 	"github.com/thcyron/graphs"
 	"os"
+	"sort"
 )
 
+//ACBEDSZULXKTIMNFGYWJVPOHRQ
+
+/*
+CDASZMULBEXKTINFGYWJVPOHRQ
+CDASZULXEIWKNBTFMGYJVPOHRQ
+EASCDZULXKBTINFMGYWJVPOHRQ
+CDEASZULINXKBTFMGYWJVPOHRQ
+ULAXCDKESZINBTFMGWYJVPOHRQ
+ULCASDZXKBETINFYWJMGVPOHRQ
+CBULDYAXKESZIWTNFJMGVPOHRQ
+AULXCDSZEIWKBTNFYJMGVPOHRQ
+AULXECDSZIWKBTNFMGYJVPOHRQ
+ASCDZMEULXKBTINFGYWJVPOHRQ
+ACBEDSZULXKTIMYWNFGJVPOHRQ
+ASCDZULXKBETINFMGYWJVPOHRQ
+ACBEDSZULXKTIMNFGYWJVPOHRQ
+ACBEDSZULXKTINFMGYWJVPOHRQ
+ECDASZULIXWNBKTYFJMGVPOHRQ
+*/
 func main() {
 	fname := "input"
-	fname = "input_test"
+	//fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 
-	graph := graphs.NewGraph()
+	graph := graphs.NewDigraph()
 
 	toCount := make(map[string]int)
 	fromCount := make(map[string]int)
@@ -30,17 +50,18 @@ func main() {
 		countPaths(toCount, fromCount, lb, la)
 		toCount[lb]++
 		fromCount[la]++
-		graph.AddEdge(lb, la, -1.0*float64(byte(la[0])))
+		graph.AddEdge(lb, la, float64(byte(la[0])))
 	}
 
 	fmt.Println("toCcount", toCount)
 	fmt.Println("fromCount", fromCount)
 	graph.Dump()
 
-	var firstVertex, lastVertex string
+	var firstVertex []string
+	var lastVertex string
 	for k, v := range toCount {
 		if v == 0 {
-			firstVertex = k
+			firstVertex = append(firstVertex, k)
 		}
 		if fromCount[k] == 0 {
 			lastVertex = k
@@ -48,8 +69,13 @@ func main() {
 	}
 	fmt.Printf("First and last instructions %v -> ... -> %v\n", firstVertex, lastVertex)
 
-	printPart1(graph, lastVertex)
-
+	var result1 []string
+	result1 = printPart1(graph, lastVertex, fromCount, result1)
+	fmt.Print("Result1: ")
+	for i := len(result1) - 1; i >= 0; i-- {
+		fmt.Print(result1[i])
+	}
+	fmt.Println()
 }
 
 func countPaths(toCount map[string]int, fromCount map[string]int, lb string, la string) {
@@ -67,30 +93,25 @@ func countPaths(toCount map[string]int, fromCount map[string]int, lb string, la 
 	}
 }
 
-func printPart1(graph *graphs.Graph, node string) {
-	satisfiedVertices := make(map[string]bool)
-	//satisfiedVertices[node] = true
-
-	graphs.BFS(graph, node, func(vertex graphs.Vertex, i *bool) {
-		if satisfiedVertices[vertex.(string)] {
-			return
+func printPart1(graph *graphs.Graph, node string, tc map[string]int, res []string) []string {
+	if tc[node] == 0 {
+		res = append(res, node)
+		fmt.Println("Cur res", res)
+		var children []string
+		for v := range graph.HalfedgesIter(node) {
+			children = append(children, v.End.(string))
 		}
-		satisfiedVertices[vertex.(string)] = true
-		fmt.Println("V: ", vertex)
-		/*		if satisfiedVertices[vertex.(string)] {
-					result = append(result, vertex.(string))
-				}
-				// satisfiedVertices[vertex.(string)] = true
-				var children []string
-				for v := range graph.HalfedgesIter(vertex) {
-					children = append(children, v.End.(string))
-				}
-				orderedChildren := sort.StringSlice(children)
-				rr := append([]string, orderedChildren, result)
-				result = rr
-				fmt.Printf("\nIter\n\tvertex: %v\n\tcurrentlySatisfied: %v\n\tcurrentResult: %v\n\torderedChildren: %v\n", vertex, satisfiedVertices, result, orderedChildren)
-		*/
-	})
+		orderedChildren := sort.StringSlice(children)
+		fmt.Printf("For node %v children %v | hist: %v\n", node, orderedChildren, tc)
+		for i := len(orderedChildren) - 1; i >= 0; i-- {
+			z := orderedChildren[i]
+			tc[z]--
+			if tc[z] >= 0 {
+				res = printPart1(graph, z, tc, res)
+			}
+		}
+	}
+	return res
 }
 
 /*
