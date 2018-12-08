@@ -13,8 +13,13 @@ import (
 type Tnode struct {
 	id       int
 	children int
-	meta     []int
+	meta     *[]int
 }
+type Tnodes []Tnode
+
+func (p Tnodes) Len() int           { return len(p) }
+func (p Tnodes) Less(i, j int) bool { return p[i].id < p[j].id }
+func (p Tnodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 func main() {
 	fname := "input"
@@ -32,87 +37,89 @@ func main() {
 
 	graph := graphs.NewDigraph()
 	stack := list.New()
-	knownNodes := make(map[int]Tnode)
-	readTree(data, 0, stack, graph, knownNodes)
+	root, _ := readTree(data, 0, stack, graph)
 	graph.Dump()
 
 	result1 := 0
-	graphs.BFS(graph, 0, func(vertex graphs.Vertex, i *bool) {
-		mt := knownNodes[vertex.(int)].meta
-		fmt.Println("gonna sum", mt)
+	graphs.BFS(graph, root, func(v graphs.Vertex, i *bool) {
+		mt := *(v.(Tnode).meta)
 		for z := range mt {
 			result1 += mt[z]
 		}
 	})
 	fmt.Println("Result1", result1)
 
-	result2 := heavyCount(graph, 0, knownNodes)
+	result2 := heavyCount(graph, root)
 	fmt.Println("Result2", result2)
 }
 
-func heavyCount(graph *graphs.Graph, vertex int, knownNodes map[int]Tnode) int {
-	selfWeight := 0
-	thisNode := knownNodes[vertex]
+// Counts node value by the rules of part 2
+func heavyCount(graph *graphs.Graph, vertex graphs.Vertex) int {
+	selfValue := 0
+	thisNode := vertex.(Tnode)
 	if thisNode.children == 0 {
-		fmt.Printf("Nochild node found %v with meta %v\n", vertex, thisNode.meta)
-		for z := range thisNode.meta {
-			selfWeight += thisNode.meta[z]
+		fmt.Printf("Nochild node found %v with meta %v\n", thisNode, thisNode.meta)
+		for z := range *thisNode.meta {
+			selfValue += (*thisNode.meta)[z]
 		}
-		fmt.Printf("Weight of nochild node %v is %v\n", vertex, selfWeight)
-		return selfWeight
+		fmt.Printf("Value of nochild node %v is %v\n", thisNode, selfValue)
+		return selfValue
 	}
 
-	var children []int
+	var children Tnodes
 	for outEdge := range graph.HalfedgesIter(vertex) {
-		children = append(children, outEdge.End.(int))
+		children = append(children, outEdge.End.(Tnode))
 	}
-	sort.Ints(children) // Important
-	fmt.Printf("Multichild node %v has children %v and meta %v\n", vertex, children, thisNode.meta)
-	for i := range thisNode.meta {
-		n := thisNode.meta[i] - 1
+	sort.Sort(children) // Important
+	fmt.Printf("Multichild node %v has children %v and meta %v\n", thisNode, children, thisNode.meta)
+	for i := range *thisNode.meta {
+		n := (*thisNode.meta)[i] - 1
 		if n >= 0 && n < len(children) {
 			childNode := children[n]
-			fmt.Println("Gonna calculate weight of", childNode)
-			cwt := heavyCount(graph, childNode, knownNodes) // count weight of an Nth child node
-			selfWeight += cwt
+			fmt.Println("Gonna calculate value of", childNode)
+			cwt := heavyCount(graph, childNode) // count value of an Nth child node
+			selfValue += cwt
 		}
 	}
 
-	fmt.Printf("Weight of multichild node %v is %v\n", vertex, selfWeight)
-	return selfWeight
+	fmt.Printf("Value of multichild node %v is %v\n", thisNode, selfValue)
+	return selfValue
 }
 
 // Parses tree encoded in a sequence of integers.
 // [Node0_children_count Node0_meta_count [Node1_children...etc] Node0_Meta<>]EOF
 //
-// Returns last index of a node that is currently being processed
-func readTree(data []int, idx int, stack *list.List, graph *graphs.Graph, knownNodes map[int]Tnode) int {
-	if idx > len(data)-2 {
-		fmt.Println("End of array reached, idx", idx)
-		return -1 // EOF
+// Returns tree root (eventually) and last index of a node that is currently being processed
+func readTree(data []int, dataIdx int, stack *list.List, graph *graphs.Graph) (graphs.Vertex, int) {
+	if dataIdx > len(data)-2 {
+		fmt.Println("End of array reached, dataIdx", dataIdx)
+		return nil, -1 // EOF
 	}
-	nodeId := idx
-	fmt.Printf("Depth %v Processing \"%v\", nodeId %v\n", stack.Len(), data[idx], nodeId)
-	stack.PushBack(nodeId)
-	nodeChildrenCount := data[idx]
-	metaCount := data[idx+1]
+	nodeId := dataIdx
+	fmt.Printf("Depth %v Processing \"%v\", nodeId %v\n", stack.Len(), data[dataIdx], nodeId)
+	nodeChildrenCount := data[dataIdx]
+	currentVertex := Tnode{nodeId, nodeChildrenCount, &[]int{}}
+	stack.PushBack(currentVertex)
+	metaCount := data[dataIdx+1]
 	for uc := nodeChildrenCount; uc > 0; uc-- {
 		// process remaining children
-		fmt.Println("Next child is probably at", idx+2)
-		possibleNext := readTree(data, idx+2, stack, graph, knownNodes)
+		fmt.Println("Next child is probably at", dataIdx+2)
+		_, possibleNext := readTree(data, dataIdx+2, stack, graph)
 		if possibleNext != -1 {
-			idx = possibleNext
+			dataIdx = possibleNext
 		}
 	}
 	fmt.Println("No unprocessed children left")
-	nodeMeta := data[idx+2 : idx+2+metaCount]
+	nodeMeta := data[dataIdx+2 : dataIdx+2+metaCount]
 	fmt.Printf("Node %v meta found, %v items: %v\n", nodeId, metaCount, nodeMeta)
-	knownNodes[nodeId] = Tnode{nodeId, nodeChildrenCount, nodeMeta}
+	*currentVertex.meta = nodeMeta
+
+	// if there's a parent down the stack, create a link
 	if stack.Len() > 1 {
-		graph.AddEdge(stack.Back().Prev().Value.(int), stack.Back().Value.(int), float64(stack.Back().Value.(int)))
+		graph.AddEdge(stack.Back().Prev().Value, currentVertex, float64(stack.Back().Value.(Tnode).id))
 	}
 	stack.Remove(stack.Back()) // tree level processed
-	return idx + metaCount
+	return currentVertex, dataIdx + metaCount
 }
 
 /*
