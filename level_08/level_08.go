@@ -3,7 +3,6 @@ package main
 import (
 	"container/list"
 	"fmt"
-	"github.com/thcyron/graphs"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -28,54 +27,55 @@ func main() {
 		data = append(data, n)
 	}
 
-	fmt.Println(data)
+	fmt.Println(len(data), data)
 
-	graph := graphs.NewDigraph()
+	//graph := graphs.NewDigraph()
 	stack := list.New()
-	readTree(graph, data, 0, stack)
-	graph.Dump()
+	readTree(data, 0, stack)
+	//graph.Dump()
 }
 
-func readTree(graph *graphs.Graph, data []int, ptr int, stack *list.List) {
-	if ptr > len(data)-2 {
-		return
+func readTree(data []int, idx int, stack *list.List) int {
+	if idx > len(data)-2 {
+		fmt.Println("End of array reached, idx", idx)
+		return -1 // EOF //todo: do we add this value somewhere. might decrease counter and loop
 	}
-	fmt.Printf("Depth %v Processing \"%v\" at index %v\n", stack.Len(), data[ptr], ptr)
-	childrenCount := data[ptr]
-	metaCount := data[ptr+1]
-
-	accumulatedOffset := 0
-	for med := stack.Back(); med != nil; med = med.Prev() {
-		accumulatedOffset += 2
-		accumulatedOffset += med.Value.(Tnode).metasize
+	nodeId := idx
+	fmt.Printf("Depth %v Processing \"%v\", nodeId %v\n", stack.Len(), data[idx], nodeId)
+	stack.PushBack(nodeId)
+	//dumpIntStack(stack)
+	unprocessedChildrenCount := data[idx]
+	metaCount := data[idx+1]
+	for uc := unprocessedChildrenCount; uc > 0; uc-- {
+		// process remaining children
+		fmt.Println("Next child is probably at", idx+2)
+		possibleNext := readTree(data, idx+2 /* */, stack)
+		if possibleNext == -1 {
+			idx = nodeId + 2
+		} else {
+			idx = possibleNext + 2
+		}
 	}
-	currentNodeMetaEnd := len(data) - accumulatedOffset
-	currentNodeMetaStart := currentNodeMetaEnd - metaCount
-	currentNodeMeta := data[currentNodeMetaStart:currentNodeMetaEnd]
-
-	stack.PushBack(Tnode{ptr, childrenCount, metaCount, currentNodeMeta})
-	dumpStack(stack)
-	if childrenCount == 0 {
-		// stub, read meta
-		fmt.Println("Current node meta", currentNodeMeta)
-		copy(stack.Back().Value.(Tnode).meta, currentNodeMeta)
-		fmt.Println(stack.Back().Value.(Tnode))
-		ptr += 2 + metaCount
-		//fmt.Println(childrenCount, metaCount, currentNodeMeta)
-	} else {
-		ptr += 2
-		//for ci := childrenCount; ci > 0; ci++ {
-		//	readTree(graph, data, ptr+1, stack)
-		//}
-	}
-	if stack.Back().Prev() != nil {
-		graph.AddEdge(stack.Back().Prev(), stack.Back(), 0)
-		stack.Remove(stack.Back())
-	}
-	readTree(graph, data, ptr, stack)
-
+	fmt.Println("No unprocessed children left")
+	nodeMeta := data[idx+2 : idx+2+metaCount]
+	fmt.Printf("Node %v meta found, %v items: %v\n", nodeId, metaCount, nodeMeta)
+	stack.Remove(stack.Back()) // tree level processed
+	//dumpIntStack(stack)
+	return idx + metaCount
+	// processChildrenRecursively
+	// parentNote.metaStartIdx =
 }
 
+func dumpIntStack(stack *list.List) {
+	fmt.Print("Stack state: <")
+	for i := stack.Front(); i != nil; i = i.Next() {
+		fmt.Print(i.Value)
+		if i.Next() != nil {
+			fmt.Print(", ")
+		}
+	}
+	fmt.Println("<")
+}
 func dumpStack(stack *list.List) {
 	fmt.Print("stack [\n")
 	for i := stack.Front(); i != nil; i = i.Next() {
