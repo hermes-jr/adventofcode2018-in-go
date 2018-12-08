@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"github.com/thcyron/graphs"
 	"io/ioutil"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 type Tnode struct {
-	id   int
-	meta []int
+	id       int
+	children int
+	meta     []int
 }
 
 func main() {
@@ -39,25 +41,62 @@ func main() {
 		mt := knownNodes[vertex.(int)].meta
 		fmt.Println("gonna sum", mt)
 		for z := range mt {
-			fmt.Println("add", mt[z])
 			result1 += mt[z]
 		}
 	})
 	fmt.Println("Result1", result1)
+
+	result2 := heavyCount(graph, 0, knownNodes)
+	fmt.Println("Result2", result2)
 }
 
+func heavyCount(graph *graphs.Graph, vertex int, knownNodes map[int]Tnode) int {
+	selfWeight := 0
+	thisNode := knownNodes[vertex]
+	if thisNode.children == 0 {
+		fmt.Printf("Nochild node found %v with meta %v\n", vertex, thisNode.meta)
+		for z := range thisNode.meta {
+			selfWeight += thisNode.meta[z]
+		}
+		fmt.Printf("Weight of nochild node %v is %v\n", vertex, selfWeight)
+		return selfWeight
+	}
+
+	var children []int
+	for outEdge := range graph.HalfedgesIter(vertex) {
+		children = append(children, outEdge.End.(int))
+	}
+	sort.Ints(children) // Important
+	fmt.Printf("Multichild node %v has children %v and meta %v\n", vertex, children, thisNode.meta)
+	for i := range thisNode.meta {
+		n := thisNode.meta[i] - 1
+		if n >= 0 && n < len(children) {
+			childNode := children[n]
+			fmt.Println("Gonna calculate weight of", childNode)
+			cwt := heavyCount(graph, childNode, knownNodes) // count weight of an Nth child node
+			selfWeight += cwt
+		}
+	}
+
+	fmt.Printf("Weight of multichild node %v is %v\n", vertex, selfWeight)
+	return selfWeight
+}
+
+// Parses tree encoded in a sequence of integers.
+// [Node0_children_count Node0_meta_count [Node1_children...etc] Node0_Meta<>]EOF
+//
+// Returns last index of a node that is currently being processed
 func readTree(data []int, idx int, stack *list.List, graph *graphs.Graph, knownNodes map[int]Tnode) int {
 	if idx > len(data)-2 {
 		fmt.Println("End of array reached, idx", idx)
-		return -1 // EOF //todo: do we add this value somewhere. might decrease counter and loop
+		return -1 // EOF
 	}
 	nodeId := idx
 	fmt.Printf("Depth %v Processing \"%v\", nodeId %v\n", stack.Len(), data[idx], nodeId)
 	stack.PushBack(nodeId)
-	//dumpIntStack(stack)
-	unprocessedChildrenCount := data[idx]
+	nodeChildrenCount := data[idx]
 	metaCount := data[idx+1]
-	for uc := unprocessedChildrenCount; uc > 0; uc-- {
+	for uc := nodeChildrenCount; uc > 0; uc-- {
 		// process remaining children
 		fmt.Println("Next child is probably at", idx+2)
 		possibleNext := readTree(data, idx+2, stack, graph, knownNodes)
@@ -68,35 +107,12 @@ func readTree(data []int, idx int, stack *list.List, graph *graphs.Graph, knownN
 	fmt.Println("No unprocessed children left")
 	nodeMeta := data[idx+2 : idx+2+metaCount]
 	fmt.Printf("Node %v meta found, %v items: %v\n", nodeId, metaCount, nodeMeta)
-	knownNodes[nodeId] = Tnode{nodeId, nodeMeta}
+	knownNodes[nodeId] = Tnode{nodeId, nodeChildrenCount, nodeMeta}
 	if stack.Len() > 1 {
-		graph.AddEdge(stack.Back().Prev().Value.(int), stack.Back().Value.(int), 0)
+		graph.AddEdge(stack.Back().Prev().Value.(int), stack.Back().Value.(int), float64(stack.Back().Value.(int)))
 	}
 	stack.Remove(stack.Back()) // tree level processed
-	//dumpIntStack(stack)
 	return idx + metaCount
-}
-
-func dumpIntStack(stack *list.List) {
-	fmt.Print("Stack state: <")
-	for i := stack.Front(); i != nil; i = i.Next() {
-		fmt.Print(i.Value)
-		if i.Next() != nil {
-			fmt.Print(", ")
-		}
-	}
-	fmt.Println("<")
-}
-func dumpStack(stack *list.List) {
-	fmt.Print("stack [\n")
-	for i := stack.Front(); i != nil; i = i.Next() {
-		iv := i.Value.(Tnode)
-		fmt.Printf("\t{id: %3v children: %3v metadata: %3v:%v}", iv.id, iv.meta)
-		if i.Next() != nil {
-			fmt.Print(",\n")
-		}
-	}
-	fmt.Println("\n]")
 }
 
 /*
