@@ -17,7 +17,7 @@ type Tnode struct {
 
 func main() {
 	fname := "input"
-	fname = "input_test"
+	//fname = "input_test"
 
 	b, _ := ioutil.ReadFile(fname)
 	inTokens := strings.Split(string(b), " ")
@@ -49,11 +49,9 @@ func readTree(data []int, idx int, stack *list.List) int {
 	for uc := unprocessedChildrenCount; uc > 0; uc-- {
 		// process remaining children
 		fmt.Println("Next child is probably at", idx+2)
-		possibleNext := readTree(data, idx+2 /* */, stack)
-		if possibleNext == -1 {
-			idx = nodeId + 2
-		} else {
-			idx = possibleNext + 2
+		possibleNext := readTree(data, idx+2, stack)
+		if possibleNext != -1 {
+			idx = possibleNext
 		}
 	}
 	fmt.Println("No unprocessed children left")
