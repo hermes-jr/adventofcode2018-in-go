@@ -3,16 +3,15 @@ package main
 import (
 	"container/list"
 	"fmt"
+	"github.com/thcyron/graphs"
 	"io/ioutil"
 	"strconv"
 	"strings"
 )
 
 type Tnode struct {
-	id       int
-	children int
-	metasize int
-	meta     []int
+	id   int
+	meta []int
 }
 
 func main() {
@@ -29,13 +28,14 @@ func main() {
 
 	fmt.Println(len(data), data)
 
-	//graph := graphs.NewDigraph()
+	graph := graphs.NewDigraph()
 	stack := list.New()
-	readTree(data, 0, stack)
-	//graph.Dump()
+	knownNodes := make(map[int]Tnode)
+	readTree(data, 0, stack, graph, knownNodes)
+	graph.Dump()
 }
 
-func readTree(data []int, idx int, stack *list.List) int {
+func readTree(data []int, idx int, stack *list.List, graph *graphs.Graph, knownNodes map[int]Tnode) int {
 	if idx > len(data)-2 {
 		fmt.Println("End of array reached, idx", idx)
 		return -1 // EOF //todo: do we add this value somewhere. might decrease counter and loop
@@ -49,7 +49,7 @@ func readTree(data []int, idx int, stack *list.List) int {
 	for uc := unprocessedChildrenCount; uc > 0; uc-- {
 		// process remaining children
 		fmt.Println("Next child is probably at", idx+2)
-		possibleNext := readTree(data, idx+2, stack)
+		possibleNext := readTree(data, idx+2, stack, graph, knownNodes)
 		if possibleNext != -1 {
 			idx = possibleNext
 		}
@@ -57,11 +57,13 @@ func readTree(data []int, idx int, stack *list.List) int {
 	fmt.Println("No unprocessed children left")
 	nodeMeta := data[idx+2 : idx+2+metaCount]
 	fmt.Printf("Node %v meta found, %v items: %v\n", nodeId, metaCount, nodeMeta)
+	knownNodes[nodeId] = Tnode{nodeId, nodeMeta}
+	if stack.Len() > 1 {
+		graph.AddEdge(stack.Back().Prev().Value.(int), stack.Back().Value.(int), 0)
+	}
 	stack.Remove(stack.Back()) // tree level processed
 	//dumpIntStack(stack)
 	return idx + metaCount
-	// processChildrenRecursively
-	// parentNote.metaStartIdx =
 }
 
 func dumpIntStack(stack *list.List) {
@@ -78,7 +80,7 @@ func dumpStack(stack *list.List) {
 	fmt.Print("stack [\n")
 	for i := stack.Front(); i != nil; i = i.Next() {
 		iv := i.Value.(Tnode)
-		fmt.Printf("\t{id: %3v children: %3v metadata: %3v:%v}", iv.id, iv.children, iv.metasize, iv.meta)
+		fmt.Printf("\t{id: %3v children: %3v metadata: %3v:%v}", iv.id, iv.meta)
 		if i.Next() != nil {
 			fmt.Print(",\n")
 		}
