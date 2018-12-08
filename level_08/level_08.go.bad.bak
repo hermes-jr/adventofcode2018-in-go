@@ -37,33 +37,24 @@ func main() {
 }
 
 func readTree(graph *graphs.Graph, data []int, ptr int, stack *list.List) {
-	if ptr > len(data)-2 {
+	if ptr >= len(data)-2 {
 		return
 	}
 	fmt.Printf("Depth %v Processing \"%v\" at index %v\n", stack.Len(), data[ptr], ptr)
 	childrenCount := data[ptr]
 	metaCount := data[ptr+1]
-
-	accumulatedOffset := 0
-	for med := stack.Back(); med != nil; med = med.Prev() {
-		accumulatedOffset += 2
-		accumulatedOffset += med.Value.(Tnode).metasize
-	}
-	currentNodeMetaEnd := len(data) - accumulatedOffset
-	currentNodeMetaStart := currentNodeMetaEnd - metaCount
-	currentNodeMeta := data[currentNodeMetaStart:currentNodeMetaEnd]
-
-	stack.PushBack(Tnode{ptr, childrenCount, metaCount, currentNodeMeta})
+	stack.PushBack(Tnode{ptr, childrenCount, metaCount, make([]int, metaCount)}) // new node encountered. meta to be filled later
 	dumpStack(stack)
 	if childrenCount == 0 {
 		// stub, read meta
+		currentNodeMeta := data[ptr+2 : ptr+3+metaCount+1]
 		fmt.Println("Current node meta", currentNodeMeta)
 		copy(stack.Back().Value.(Tnode).meta, currentNodeMeta)
 		fmt.Println(stack.Back().Value.(Tnode))
-		ptr += 2 + metaCount
+		ptr += 3 + metaCount
 		//fmt.Println(childrenCount, metaCount, currentNodeMeta)
 	} else {
-		ptr += 2
+		ptr++
 		//for ci := childrenCount; ci > 0; ci++ {
 		//	readTree(graph, data, ptr+1, stack)
 		//}
@@ -79,8 +70,7 @@ func readTree(graph *graphs.Graph, data []int, ptr int, stack *list.List) {
 func dumpStack(stack *list.List) {
 	fmt.Print("stack [\n")
 	for i := stack.Front(); i != nil; i = i.Next() {
-		iv := i.Value.(Tnode)
-		fmt.Printf("\t{id: %3v children: %3v metadata: %3v:%v}", iv.id, iv.children, iv.metasize, iv.meta)
+		fmt.Printf("\t%v", i.Value)
 		if i.Next() != nil {
 			fmt.Print(",\n")
 		}
