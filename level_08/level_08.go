@@ -33,6 +33,17 @@ func main() {
 	knownNodes := make(map[int]Tnode)
 	readTree(data, 0, stack, graph, knownNodes)
 	graph.Dump()
+
+	result1 := 0
+	graphs.BFS(graph, 0, func(vertex graphs.Vertex, i *bool) {
+		mt := knownNodes[vertex.(int)].meta
+		fmt.Println("gonna sum", mt)
+		for z := range mt {
+			fmt.Println("add", mt[z])
+			result1 += mt[z]
+		}
+	})
+	fmt.Println("Result1", result1)
 }
 
 func readTree(data []int, idx int, stack *list.List, graph *graphs.Graph, knownNodes map[int]Tnode) int {
