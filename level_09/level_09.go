@@ -5,23 +5,63 @@ import (
 	"fmt"
 )
 
+const debug = false
+
+//const totalPlayers = 30 // test
+//const totalMarbles = 5807 // test
+const totalPlayers = 432
+const totalMarbles = 71019
+
 func main() {
-	z := ring.New(1)
-	z.Value = 0
+	result1 := playRound(totalMarbles, debug)
+	fmt.Println("Result1", result1)
+	result2 := playRound(totalMarbles*100, debug)
+	fmt.Println("Result2", result2)
+}
 
-	for mrbl := 1; mrbl <= 17; mrbl++ {
-		nextel := ring.New(1)
-		nextel.Value = mrbl
-		z = z.Next()       // between 1 and 2 clockwise after current
-		z = z.Link(nextel) // add
-		z = z.Prev()       // make new element a current one
-		printRing("Ring", z)
-
-		// if 23
-		// rng = rng.Move(-7)
-		// rng.Unlink(1)
-		// rng.Move(1)
+func playRound(totalMarbles int, debug bool) int {
+	scores := [totalPlayers]int{}
+	currentPlayer := ring.New(totalPlayers)
+	for i := 1; i <= totalPlayers; i, currentPlayer = i+1, currentPlayer.Next() {
+		currentPlayer.Value = i
 	}
+	data := ring.New(1)
+	data.Value = 0
+	for currentMarbleId := 1; currentMarbleId <= totalMarbles; currentPlayer, currentMarbleId = currentPlayer.Next(), currentMarbleId+1 {
+		currentPlayerId := currentPlayer.Value.(int)
+		if debug {
+			fmt.Printf("Current player: %v; current marble: %v\n", currentPlayerId, currentMarbleId)
+		}
+
+		if currentMarbleId%23 != 0 {
+			elementToAdd := ring.New(1)
+			elementToAdd.Value = currentMarbleId
+			data = data.Next()             // between 1 and 2 clockwise after current
+			data = data.Link(elementToAdd) // add
+			data = data.Prev()             // make new element a current one
+		} else {
+			scores[currentPlayerId-1] += currentMarbleId
+			data = data.Move(-8)
+			scores[currentPlayerId-1] += data.Unlink(1).Value.(int)
+			data = data.Next()
+			if debug {
+				fmt.Println("Scores updated", scores)
+			}
+		}
+		if debug {
+			printRing("Ring", data)
+		}
+	}
+	if debug {
+		fmt.Println("Scores after full game cycle", scores)
+	}
+	result := 0
+	for i := 0; i < totalPlayers; i++ {
+		if result < scores[i] {
+			result = scores[i]
+		}
+	}
+	return result
 }
 
 func printRing(s string, rb *ring.Ring) {
@@ -94,5 +134,11 @@ Here are a few more examples:
     30 players; last marble is worth 5807 points: high score is 37305
 
 What is the winning Elf's score?
+
+--- Part Two ---
+
+Amused by the speed of your answer, the Elves are curious:
+
+What would the new winning Elf's score be if the number of the last marble were 100 times larger?
 
 */
