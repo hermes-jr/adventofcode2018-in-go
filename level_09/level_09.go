@@ -20,12 +20,12 @@ func main() {
 }
 
 func playRound(totalMarbles int, debug bool) int {
-	scores := [totalPlayers]int{}
-	currentPlayer := ring.New(totalPlayers)
+	scores := [totalPlayers]int{}           // zero out scores at the beginning of a round
+	currentPlayer := ring.New(totalPlayers) // players are going to take turns first to last, then first again
 	for i := 1; i <= totalPlayers; i, currentPlayer = i+1, currentPlayer.Next() {
 		currentPlayer.Value = i
 	}
-	data := ring.New(1)
+	data := ring.New(1) // marble zero
 	data.Value = 0
 	for currentMarbleId := 1; currentMarbleId <= totalMarbles; currentPlayer, currentMarbleId = currentPlayer.Next(), currentMarbleId+1 {
 		currentPlayerId := currentPlayer.Value.(int)
@@ -36,14 +36,14 @@ func playRound(totalMarbles int, debug bool) int {
 		if currentMarbleId%23 != 0 {
 			elementToAdd := ring.New(1)
 			elementToAdd.Value = currentMarbleId
-			data = data.Next()             // between 1 and 2 clockwise after current
-			data = data.Link(elementToAdd) // add
+			data = data.Next()             // new marble must be placed between the marbles that are 1 and 2 marbles clockwise of the current one
+			data = data.Link(elementToAdd) // insert
 			data = data.Prev()             // make new element a current one
 		} else {
-			scores[currentPlayerId-1] += currentMarbleId
+			scores[currentPlayerId-1] += currentMarbleId // add points to player and discard the marble
 			data = data.Move(-8)
-			scores[currentPlayerId-1] += data.Unlink(1).Value.(int)
-			data = data.Next()
+			scores[currentPlayerId-1] += data.Unlink(1).Value.(int) // remove 7th marble counter-clockwise adding its number to score
+			data = data.Next()                                      // make next element a current one
 			if debug {
 				fmt.Println("Scores updated", scores)
 			}
@@ -55,6 +55,7 @@ func playRound(totalMarbles int, debug bool) int {
 	if debug {
 		fmt.Println("Scores after full game cycle", scores)
 	}
+	// get top score
 	result := 0
 	for i := 0; i < totalPlayers; i++ {
 		if result < scores[i] {
@@ -64,6 +65,7 @@ func playRound(totalMarbles int, debug bool) int {
 	return result
 }
 
+// Prints all marbles in a circle marking current one
 func printRing(s string, rb *ring.Ring) {
 	currentMarble := rb.Value
 
