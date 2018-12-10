@@ -15,14 +15,14 @@ type Point struct {
 
 func main() {
 	fname := "input"
-	fname = "input_test"
+	//fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 
-	data := []Point{}
+	var data []Point
 
 	for scanner.Scan() {
 		inputLine := scanner.Text()
@@ -44,28 +44,30 @@ func main() {
 		data = append(data, p)
 	}
 
+	// Wait until lights spread decreases, as soon as it starts to increase - we've passed the right step
 	var lastSurf int
 	for step := 0; ; step++ {
-		minx, miny, maxx, maxy := calcMostDistantPoints(data, step)
-		curSurf := (maxx - minx + 1) * (maxy - miny + 1)
+		xsize, ysize, _, _ := calcFieldSize(data, step)
+		curSurf := xsize * ysize
 		if lastSurf == 0 || curSurf < lastSurf {
 			lastSurf = curSurf
 		} else {
 			// overshoot
 			step--
-			fmt.Println("Best step found", step)
-			minx, miny, maxx, maxy := calcMostDistantPoints(data, step)
-			takeScreenshot(data, step, minx, miny, maxx, maxy)
+			fmt.Println("Result1:")
+			takeScreenshot(data, step)
+			fmt.Println("Result2:", step)
 			break
 		}
 	}
 
 }
 
-func calcMostDistantPoints(data []Point, step int) (int, int, int, int) {
-	minx := data[0].xpos
+// Get field size at a specific step
+func calcFieldSize(data []Point, step int) (int, int, int, int) {
+	minx := data[0].xpos + step*data[0].xvel
 	maxx := minx
-	miny := data[0].ypos
+	miny := data[0].ypos + step*data[0].yvel
 	maxy := miny
 
 	for _, p := range data {
@@ -76,35 +78,24 @@ func calcMostDistantPoints(data []Point, step int) (int, int, int, int) {
 		minx = minOf(xpos, minx)
 		miny = minOf(ypos, miny)
 	}
-	return minx, miny, maxx, maxy
+	return maxx - minx + 1, maxy - miny + 1, minx, miny
 }
-func takeScreenshot(data []Point, step, minx, miny, maxx, maxy int) {
-	fmt.Printf("field [%v; %v]: minx:%v, maxx:%v, miny:%v, maxy:%v\n", maxy-miny, maxx-minx, minx, maxx, miny, maxx)
 
-	region := make([][]bool, maxy-miny+1)
+// Print points clipping area to min-max coordinates
+func takeScreenshot(data []Point, step int) {
+	xsize, ysize, minx, miny := calcFieldSize(data, step)
+	fmt.Printf("field [%v; %v]: minx:%v, miny:%v\n", xsize, ysize, minx, miny)
+
+	region := make([][]bool, ysize)
 	for i := range region {
-		region[i] = make([]bool, maxx-minx+1)
+		region[i] = make([]bool, xsize)
 	}
 
 	for _, p := range data {
-		pointCoordX := p.xpos + p.xvel*step - minx
-		pointCoordY := p.ypos + p.yvel*step - miny
-		region[pointCoordY][pointCoordX] = true
+		pointCoordX := p.xpos + p.xvel*step
+		pointCoordY := p.ypos + p.yvel*step
+		region[pointCoordY-miny][pointCoordX-minx] = true
 	}
-
-	/*	niceXCoordinate := -1
-		niceYCoordinate := -1
-		for i := 0; i < len(region); i++ {
-			for j := 3; j < len(region[i]); j++ {
-				if region[i][j-1] && region[i][j-2] && region[i][j-3] { // this looks like a part of a letter
-					niceXCoordinate = i
-					niceYCoordinate = j
-					break
-				}
-			}
-		}
-		fmt.Printf("Something looking like a letter found at [%v; %v]\n", niceXCoordinate, niceYCoordinate)
-	*/
 	for i := 0; i < len(region); i++ {
 		for j := 0; j < len(region[i]); j++ {
 			if region[i][j] {
@@ -277,5 +268,11 @@ After 4 seconds:
 After 3 seconds, the message appeared briefly: HI. Of course, your message will be much longer and will take many more seconds to appear.
 
 What message will eventually appear in the sky?
+
+--- Part Two ---
+
+Good thing you didn't have to wait, because that would have taken a long time - much longer than the 3 seconds in the example above.
+
+Impressed by your sub-hour communication capabilities, the Elves are curious: exactly how many seconds would they have needed to wait for that message to appear?
 
 */
