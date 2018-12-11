@@ -9,10 +9,6 @@ type Point struct {
 }
 
 func main() {
-	//fmt.Println(getCellPowerLevel(3, 5, 8))      // 4
-	//fmt.Println(getCellPowerLevel(122, 79, 57))  // -5
-	//fmt.Println(getCellPowerLevel(217, 196, 39)) // 0
-	//fmt.Println(getCellPowerLevel(101, 153, 71)) // 4
 	data := make([][]int, 301)
 	for i := range data {
 		data[i] = make([]int, 301)
@@ -22,12 +18,34 @@ func main() {
 			data[y][x] = getCellPowerLevel(x, y, GRID_SERIAL)
 		}
 	}
+	result1 := getMaxCharge(data, 3)
+	fmt.Printf("Result1: %v,%v\n", result1.x, result1.y)
+
+	result2 := getMaxCharge(data, 1)
+	r2Cs := 1
+	for cs := 2; cs <= 300; cs++ {
+		tr := getMaxCharge(data, cs)
+		if tr.power > result2.power {
+			result2 = tr
+			r2Cs = cs
+		}
+	}
+
+	fmt.Printf("Result2: %v,%v,%v\n", result2.x, result2.y, r2Cs)
+}
+
+// Unacceptably slow, must cache known values. A working brute force solution though
+func getMaxCharge(data [][]int, cellSize int) Point {
+	fmt.Println("Cell size", cellSize)
 	result := Point{0, 0, -5}
-	for y := 1; y < len(data)-2; y++ {
-		for x := 1; x < len(data[y])-2; x++ {
-			localPower := data[y][x] + data[y][x+1] + data[y][x+2] +
-				data[y+1][x] + data[y+1][x+1] + data[y+1][x+2] +
-				data[y+2][x] + data[y+2][x+1] + data[y+2][x+2]
+	for y := 1; y < len(data)-cellSize-1; y++ {
+		for x := 1; x < len(data[y])-cellSize-1; x++ {
+			localPower := 0
+			for dy := 0; dy < cellSize; dy++ {
+				for dx := 0; dx < cellSize; dx++ {
+					localPower += data[y+dy][x+dx]
+				}
+			}
 			if localPower > result.power {
 				result.x = x
 				result.y = y
@@ -35,7 +53,7 @@ func main() {
 			}
 		}
 	}
-	fmt.Println(result)
+	return result
 }
 
 func getCellPowerLevel(x, y, gridSerial int) int {
