@@ -8,6 +8,7 @@ import (
 
 const STEPS1 = 20
 const STEPS2 = 50000000000
+const DEBUG = false
 
 type PotArray map[int]bool
 type Rules map[[5]bool]bool
@@ -62,8 +63,10 @@ func main() {
 		if step == STEPS1 {
 			fmt.Println("Result1", zsum)
 		}
-		//fmt.Printf("At step %v range is %v - %v and there are plants alive %v; sum: %v\n", step, drl, drh, livecount, zsum)
-		//printPots(data, drl, drh, step)
+		if DEBUG {
+			fmt.Printf("At step %v range is %v - %v and there are %v plants alive; sum: %v\n", step, drl, drh, livecount, zsum)
+			printPots(data, drl, drh, step)
+		}
 	}
 	fmt.Println("Result2", zsum+livecount*(STEPS2-1000))
 }
@@ -72,6 +75,7 @@ func main() {
 func evolve(data PotArray, rules Rules, loval, hival int) (PotArray, int, int, int, int) {
 	livecount := 0
 	zsum := 0
+	lowestAliveSeen := hival
 	nextGen := make(PotArray)
 	for k := loval - 2; k <= hival+2; k++ {
 		rkey := [5]bool{data[k-2], data[k-1], data[k], data[k+1], data[k+2]}
@@ -80,15 +84,15 @@ func evolve(data PotArray, rules Rules, loval, hival int) (PotArray, int, int, i
 		if cellAlive {
 			livecount++
 			zsum += k
-			if k < loval {
-				loval = k
+			if k < lowestAliveSeen {
+				lowestAliveSeen = k
 			}
 			if k > hival {
 				hival = k
 			}
 		}
 	}
-	return nextGen, loval, hival, livecount, zsum
+	return nextGen, lowestAliveSeen, hival, livecount, zsum
 }
 
 // Prints pots status at current step marking pot zero with braces
