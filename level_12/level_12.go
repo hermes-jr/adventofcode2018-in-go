@@ -6,26 +6,31 @@ import (
 	"os"
 )
 
+const STEPS = 20
+
+type PotArray map[int]bool
+type Rules map[[5]bool]bool
+
 func main() {
 	fname := "input"
-	fname = "input_test"
+	//fname = "input_test"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 
-	var data []bool
-	rules := make(map[[5]bool]bool)
+	data := make(PotArray)
+	rules := make(Rules)
 	scanner.Scan()
 	initialState := scanner.Text()
 	scanner.Scan() // skip empty line
 	fmt.Println("initial: ", initialState[15:])
-	for _, v := range initialState[15:] {
+	for k, v := range initialState[15:] {
 		if v == '#' {
-			data = append(data, true)
+			data[k] = true
 		} else {
-			data = append(data, false)
+			data[k] = false
 		}
 	}
 	fmt.Println(data)
@@ -45,6 +50,57 @@ func main() {
 		rules[mkey] = survivalRuleLine[9] == '#'
 	}
 	fmt.Println(rules)
+
+	drl := -3
+	drh := len(data) + 3
+	for step := 0; step < STEPS; step++ {
+		//printPots(data, drl, drh, step) // printPots(data, -15, 150, step)
+		data, drl, drh = evolve(data, rules, drl, drh)
+	}
+
+	result1 := 0
+	for k, v := range data {
+		if v {
+			result1 += k
+		}
+	}
+	fmt.Println("Result1", result1)
+}
+
+func evolve(data PotArray, rules Rules, loval, hival int) (PotArray, int, int) {
+	nextGen := make(PotArray)
+	for k := loval - 2; k <= hival+2; k++ {
+		rkey := [5]bool{data[k-2], data[k-1], data[k], data[k+1], data[k+2]}
+		cellAlive := rules[rkey]
+		nextGen[k] = cellAlive
+		if cellAlive {
+			if k < loval {
+				loval = k
+			}
+			if k > hival {
+				hival = k
+			}
+		}
+		//fmt.Println("setting", k, "to", rules[rkey])
+	}
+	return nextGen, loval, hival
+}
+
+// doesn't work now, must determine keys range first and iterate sequentially
+func printPots(data PotArray, loval, hival, step int) {
+	fmt.Printf("%5v: ", step)
+	for iter := loval; iter <= hival; iter++ {
+		fmts := "%v"
+		if iter == 0 {
+			fmts = "(%v)"
+		}
+		if data[iter] {
+			fmt.Printf(fmts, "#")
+		} else {
+			fmt.Printf(fmts, ".")
+		}
+	}
+	fmt.Println()
 }
 
 /*
