@@ -6,7 +6,8 @@ import (
 	"os"
 )
 
-const STEPS = 20
+const STEPS1 = 20
+const STEPS2 = 50000000000
 
 type PotArray map[int]bool
 type Rules map[[5]bool]bool
@@ -53,27 +54,32 @@ func main() {
 
 	drl := -3
 	drh := len(data) + 3
-	for step := 0; step < STEPS; step++ {
-		//printPots(data, drl, drh, step) // printPots(data, -15, 150, step)
-		data, drl, drh = evolve(data, rules, drl, drh)
-	}
-
-	result1 := 0
-	for k, v := range data {
-		if v {
-			result1 += k
+	var livecount, zsum int
+	// At some point population size stabilizes and plants just move in positive direction
+	// 1000 steps is enough to calculate the surviving population size and a base sum
+	for step := 1; step <= 1000; step++ {
+		data, drl, drh, livecount, zsum = evolve(data, rules, drl, drh)
+		if step == STEPS1 {
+			fmt.Println("Result1", zsum)
 		}
+		//fmt.Printf("At step %v range is %v - %v and there are plants alive %v; sum: %v\n", step, drl, drh, livecount, zsum)
+		//printPots(data, drl, drh, step)
 	}
-	fmt.Println("Result1", result1)
+	fmt.Println("Result2", zsum+livecount*(STEPS2-1000))
 }
 
-func evolve(data PotArray, rules Rules, loval, hival int) (PotArray, int, int) {
+// Calculates and returns next generation state
+func evolve(data PotArray, rules Rules, loval, hival int) (PotArray, int, int, int, int) {
+	livecount := 0
+	zsum := 0
 	nextGen := make(PotArray)
 	for k := loval - 2; k <= hival+2; k++ {
 		rkey := [5]bool{data[k-2], data[k-1], data[k], data[k+1], data[k+2]}
 		cellAlive := rules[rkey]
 		nextGen[k] = cellAlive
 		if cellAlive {
+			livecount++
+			zsum += k
 			if k < loval {
 				loval = k
 			}
@@ -81,15 +87,14 @@ func evolve(data PotArray, rules Rules, loval, hival int) (PotArray, int, int) {
 				hival = k
 			}
 		}
-		//fmt.Println("setting", k, "to", rules[rkey])
 	}
-	return nextGen, loval, hival
+	return nextGen, loval, hival, livecount, zsum
 }
 
-// doesn't work now, must determine keys range first and iterate sequentially
+// Prints pots status at current step marking pot zero with braces
 func printPots(data PotArray, loval, hival, step int) {
 	fmt.Printf("%5v: ", step)
-	for iter := loval; iter <= hival; iter++ {
+	for iter := loval - 2; iter <= hival+2; iter++ {
 		fmts := "%v"
 		if iter == 0 {
 			fmts = "(%v)"
@@ -172,5 +177,11 @@ After one generation, only seven plants remain. The one in pot 0 matched the rul
 In this example, after 20 generations, the pots shown as # contain plants, the furthest left of which is pot -2, and the furthest right of which is pot 34. Adding up all the numbers of plant-containing pots after the 20th generation produces 325.
 
 After 20 generations, what is the sum of the numbers of all pots which contain a plant?
+
+--- Part Two ---
+
+You realize that 20 generations aren't enough. After all, these plants will need to last another 1500 years to even reach your timeline, not to mention your future.
+
+After fifty billion (50000000000) generations, what is the sum of the numbers of all pots which contain a plant?
 
 */
