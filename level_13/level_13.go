@@ -7,9 +7,12 @@ import (
 	"sort"
 )
 
+const DEBUG = false
+
 type Cart struct {
-	id, x, y, turnCount int
-	direction           byte
+	id, x, y  int
+	turnCount int8
+	direction byte
 }
 
 func (data Cart) String() string {
@@ -52,7 +55,12 @@ func main() {
 	scanner := bufio.NewScanner(file)
 
 	carts := Carts{}
-	vels := map[byte]Repl{'>': {Velocity{1, 0}, '-'}, '<': {Velocity{-1, 0}, '-'}, '^': {Velocity{0, -1}, '|'}, 'v': {Velocity{0, 1}, '|'}, 'x': {Velocity{0, 0}, 'x'}}
+	directionToVelocity := map[byte]Repl{
+		'>': {Velocity{1, 0}, '-'},
+		'<': {Velocity{-1, 0}, '-'},
+		'^': {Velocity{0, -1}, '|'},
+		'v': {Velocity{0, 1}, '|'},
+		'x': {Velocity{0, 0}, 'x'}}
 
 	for rowNum, cartId := 0, 0; scanner.Scan(); rowNum++ {
 		data = append(data, []byte{})
@@ -60,11 +68,10 @@ func main() {
 		for colNum, v := range inputLine {
 			if v == '>' || v == '<' || v == 'v' || v == '^' {
 				// parse cart and replace with underlying track if current cell is a cart
-				data[rowNum] = append(data[rowNum], byte(vels[v].repl))
+				data[rowNum] = append(data[rowNum], byte(directionToVelocity[v].repl))
 				carts = append(carts, Cart{cartId, colNum, rowNum, 0, v})
 				cartId++
 			} else {
-				// parse cart and replace with underlying track if current cell is a cart
 				data[rowNum] = append(data[rowNum], v)
 			}
 		}
@@ -74,18 +81,19 @@ func main() {
 
 	nCollisions := 0
 	alive := len(carts)
-	lastTick := -10
 outerLoop:
-	for step := 0; alive > 0; step++ {
-		//fmt.Println("begintick", step, carts)
-		//printMap(data, carts)
+	for tick := 0; alive > 0; tick++ {
+		if DEBUG {
+			fmt.Println("Starting tick", tick, carts)
+			printMap(data, carts)
+		}
 
 		for k, cart := range carts {
 			if cart.direction == 'x' {
-				continue // already broken. next
+				continue // cart is already broken, next
 			}
 
-			cart = moveCart(cart, data, vels[cart.direction].v)
+			cart = moveCart(cart, data, directionToVelocity[cart.direction].v)
 			carts[k] = cart
 
 			// detect collisions after moving
@@ -95,6 +103,7 @@ outerLoop:
 					continue // can't collide with self, try next candidate for collision and debris are removed by elves
 				}
 				if cart.x == possibleCollision.x && cart.y == possibleCollision.y {
+					// collision detected
 					cart.direction = 'x'
 					carts[k] = cart
 					possibleCollision.direction = 'x'
@@ -104,14 +113,11 @@ outerLoop:
 					if nCollisions == 1 {
 						fmt.Printf("Result1: %v,%v\n", cart.x, cart.y)
 					}
-					if alive == 1 && lastTick < 0 {
-						lastTick = step
-					}
 					break
 				}
 			}
 		}
-		if step == lastTick {
+		if alive == 1 {
 			for _, survivor := range carts {
 				if survivor.direction != 'x' {
 					fmt.Printf("Result2: %v,%v\n", survivor.x, survivor.y)
@@ -119,10 +125,11 @@ outerLoop:
 				}
 			}
 		}
-		sort.Sort(carts) // resort carts to handle them correctly at next step
-		//fmt.Println("endtick", step, carts)
-		//printMap(data, carts)
-		//fmt.Printf("\n\n\n\n")
+		sort.Sort(carts) // resort carts to handle them correctly at next tick
+		if DEBUG {
+			fmt.Println("Tick complete", tick, carts)
+			printMap(data, carts)
+		}
 	}
 }
 
@@ -137,13 +144,16 @@ func moveCart(cart Cart, data [][]byte, v Velocity) Cart {
 	railType := data[y][x]
 	if railType == '+' {
 		// handle intersection
-		if cart.turnCount%3 == 0 {
+		if cart.turnCount == 0 {
 			turnLeft(&cart)
-		} else if cart.turnCount%3 == 2 {
+		} else if cart.turnCount == 2 {
 			turnRight(&cart)
 		}
 		// straight otherwise
 		cart.turnCount++
+		if cart.turnCount == 3 {
+			cart.turnCount = 0
+		}
 	} else if railType == '/' {
 		if cart.direction == '>' || cart.direction == '<' {
 			turnLeft(&cart)
