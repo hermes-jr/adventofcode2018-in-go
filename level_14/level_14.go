@@ -1,6 +1,8 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 const DEBUG = false
 
@@ -10,12 +12,70 @@ func main() {
 	//target = 9
 	//target = 18
 	//target = 2018
+	//target = 51589
+	strg := []uint8{0, 1, 2, 4, 5}
+	strg = []uint8{9, 2, 5, 1, 0}
+	strg = []uint8{6, 0, 7, 3, 3, 1}
+
+	//
+	//51589 first appears after 9 recipes.
+	//01245 first appears after 5 recipes.
+	//92510 first appears after 18 recipes.
+	//59414 first appears after 2018 recipes.
 
 	scores := []uint8{3, 7}
 	ptr1 := 0
 	ptr2 := 1
-	nextStepIsResult1 := -1
-	for step := 0; len(scores) < target+15; step++ {
+	p1Progress := -1
+	p2Progress := -1
+	//strg := split(target)
+	tlen := len(strg)
+	for step := 0; p1Progress != 2 || p2Progress != 1; step++ {
+		scorelen := len(scores)
+		r2i := 0
+		if DEBUG {
+			fmt.Println("Searching ", strg)
+			fmt.Println("in ", scores)
+		}
+		if p2Progress == -1 && scorelen > tlen {
+			// calc part2
+			fullMatch := true
+			for i := 0; i < tlen; i++ {
+				if strg[i] != scores[scorelen-tlen-1+i] {
+					fullMatch = false
+					break
+				}
+			}
+			r2i = scorelen - tlen - 1
+			if !fullMatch && scorelen > tlen+1 {
+				for i := 0; i < tlen; i++ {
+					if strg[i] != scores[scorelen-tlen-2+i] {
+						fullMatch = false
+						break
+					}
+				}
+				r2i = scorelen - tlen - 2
+			}
+			if fullMatch {
+				fmt.Println("Result2", r2i)
+				p2Progress = 1
+			}
+		}
+
+		if p1Progress == 1 {
+			// print part1 result
+			fmt.Print("Last ten: ")
+			for nt := target; nt < target+10; nt++ {
+				fmt.Print(scores[nt])
+			}
+			fmt.Println()
+			p1Progress = 2
+		}
+		if p1Progress == -1 && scorelen+1 >= target+10 {
+			// part1 condition satisfied, print results next time
+			p1Progress = 1
+		}
+
 		ingredient1 := scores[ptr1]
 		ingredient2 := scores[ptr2]
 		newRecipe := ingredient1 + ingredient2
@@ -24,21 +84,10 @@ func main() {
 			printScoreboard(scores, ptr1, ptr2)
 		}
 
-		if nextStepIsResult1 == 1 {
-			fmt.Print("Last ten: ")
-			for nt := target; nt < target+10; nt++ {
-				fmt.Print(scores[nt])
-			}
-			fmt.Println()
-			nextStepIsResult1 = 2
-		}
-		if len(scores)+1 >= target+10 && nextStepIsResult1 == -1 {
-			nextStepIsResult1 = 1
-		}
-
-		scores = append(scores, split(newRecipe)...)
-		ptr1 = nextid(ptr1, len(scores), scores[ptr1])
-		ptr2 = nextid(ptr2, len(scores), scores[ptr2])
+		scores = append(scores, split(int(newRecipe))...)
+		scorelen = len(scores)
+		ptr1 = nextid(ptr1, scorelen, scores[ptr1])
+		ptr2 = nextid(ptr2, scorelen, scores[ptr2])
 
 	}
 
@@ -61,12 +110,15 @@ func nextid(curpos, totalSize int, curval uint8) int {
 	return (curpos + 1 + int(curval)) % totalSize
 }
 
-func split(in uint8) []uint8 {
+func split(in int) []uint8 {
 	if in < 10 {
-		return []uint8{in}
-	} else {
-		return []uint8{in / 10, in % 10}
+		return []uint8{uint8(in)}
 	}
+	var result []uint8
+	for om := 1; in >= om; om *= 10 {
+		result = append([]uint8{uint8((in / om) % 10)}, result...)
+	}
+	return result
 }
 
 /*
