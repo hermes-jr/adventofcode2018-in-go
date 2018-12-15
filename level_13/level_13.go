@@ -29,17 +29,9 @@ type Repl struct {
 
 type Carts []Cart
 
-func (c Carts) Len() int      { return len(c) }
-func (c Carts) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c Carts) Less(i, j int) bool {
-	if c[i].y < c[j].y {
-		return true
-	} else if c[i].y > c[j].y {
-		return false
-	} else {
-		return c[i].x < c[j].x
-	}
-}
+func (c Carts) Len() int           { return len(c) }
+func (c Carts) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c Carts) Less(i, j int) bool { return c[i].y < c[j].y && c[i].x < c[j].x }
 
 func main() {
 	// must not remove trailing spaces in file
@@ -66,7 +58,7 @@ func main() {
 		data = append(data, []byte{})
 		inputLine := scanner.Bytes()
 		for colNum, v := range inputLine {
-			if v == '>' || v == '<' || v == 'v' || v == '^' {
+			if _, ok := directionToVelocity[v]; ok {
 				// parse cart and replace with underlying track if current cell is a cart
 				data[rowNum] = append(data[rowNum], byte(directionToVelocity[v].repl))
 				carts = append(carts, Cart{cartId, colNum, rowNum, 0, v})
@@ -77,12 +69,12 @@ func main() {
 		}
 
 	}
-	sort.Sort(carts)
 
 	nCollisions := 0
 	alive := len(carts)
 outerLoop:
 	for tick := 0; alive > 0; tick++ {
+		sort.Sort(carts)
 		if DEBUG {
 			fmt.Println("Starting tick", tick, carts)
 			printMap(data, carts)
@@ -125,7 +117,6 @@ outerLoop:
 				}
 			}
 		}
-		sort.Sort(carts) // resort carts to handle them correctly at next tick
 		if DEBUG {
 			fmt.Println("Tick complete", tick, carts)
 			printMap(data, carts)
@@ -198,44 +189,48 @@ func turnLeft(cart *Cart) {
 	}
 }
 
-// Enumerate coordinates and print map (no carts yet)
+// Enumerate coordinates and print map
 func printMap(data [][]byte, carts Carts) {
 	if len(data) == 0 {
 		fmt.Println("-EMPTY MAP-")
 		return
 	}
-	fmt.Printf("    ")
+	fmt.Printf("     ")
 	for i := 0; i < len(data[0]); i++ {
 		if i/100 != 0 {
-			fmt.Printf(" %v", (i/100)%100)
+			fmt.Printf("%v", (i/100)%100)
 		} else {
-			fmt.Print("  ")
+			fmt.Print(" ")
 		}
 	}
-	fmt.Printf("\n    ")
+	fmt.Printf("\n     ")
 	for i := 0; i < len(data[0]); i++ {
 		if i/10 != 0 {
-			fmt.Printf(" %v", (i/10)%10)
+			fmt.Printf("%v", (i/10)%10)
 		} else {
-			fmt.Print("  ")
+			fmt.Print(" ")
 		}
 	}
-	fmt.Printf("\n    ")
+	fmt.Printf("\n     ")
 	for i := 0; i < len(data[0]); i++ {
-		fmt.Printf(" %v", i%10)
+		fmt.Printf("%v", i%10)
 	}
 	fmt.Println()
 
+	cid := 0
+	ct := carts[cid]
 	for i := 0; i < len(data); i++ {
 		fmt.Printf("%3v: ", i)
 		for j := 0; j < len(data[i]); j++ {
 			ch := data[i][j]
-			for _, ct := range carts {
-				if ct.x == j && ct.y == i {
-					ch = ct.direction
+			if ct.x == j && ct.y == i {
+				ch = ct.direction
+				if cid+1 < len(carts) {
+					cid++
+					ct = carts[cid]
 				}
 			}
-			fmt.Printf("%v ", string(ch))
+			fmt.Printf("%v", string(ch))
 		}
 		fmt.Println()
 	}
