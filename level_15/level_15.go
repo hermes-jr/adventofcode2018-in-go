@@ -3,84 +3,96 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/emirpasic/gods/maps/treemap"
+	"github.com/thcyron/graphs"
+	"log"
 	"os"
-	"sort"
 )
 
 const DEBUG = true
 
 type Unit struct {
-	id, x, y, hp int
-	race         byte
+	id, hp int
+	race   byte
 }
 
 const attackPower = 3
 const initialHp = 200
 
 func (data Unit) String() string {
-	return fmt.Sprintf("{%v (%v) %v:%v}", string(data.race), data.hp, data.x, data.y)
+	return fmt.Sprintf("{%v (%v) id_%v}", string(data.race), data.hp, data.id)
 }
-
-type Units []Unit
-
-func (u Units) Len() int           { return len(u) }
-func (u Units) Swap(i, j int)      { u[i], u[j] = u[j], u[i] }
-func (u Units) Less(i, j int) bool { return u[i].y < u[j].y && u[i].x < u[j].x }
 
 func main() {
 	fname := "input"
 	fname = "input_test1"
-	//fname = "input_test2"
-	//fname = "input_test3"
 
 	file, _ := os.Open(fname)
 	defer file.Close()
-	var data [][]byte
+	var data [][]bool
 
 	scanner := bufio.NewScanner(file)
 
-	units := Units{}
+	units := treemap.NewWithIntComparator()
 
+	var loc int
 	for rowNum, unitId := 0, 0; scanner.Scan(); rowNum++ {
-		data = append(data, []byte{})
+		data = append(data, []bool{})
 		inputLine := scanner.Bytes()
-		for colNum, v := range inputLine {
+		for _, v := range inputLine {
 			if v == 'E' || v == 'G' {
-				units = append(units, Unit{unitId, colNum, rowNum, initialHp, v})
+				units.Put(loc, Unit{unitId, initialHp, v})
 				unitId++
 			}
-			data[rowNum] = append(data[rowNum], v)
+			data[rowNum] = append(data[rowNum], v != '#')
+			loc++
 		}
-
 	}
 
-	//outerLoop:
-	for turn := 0; turn < 2; turn++ {
-		sort.Sort(units)
+	graph := graphs.NewGraph()
+	mapWidth := len(data[0])
+	for i := 0; i < len(data)-1; i++ {
+		for j := 0; j < mapWidth-1; j++ {
+			if data[i][j+1] {
+				// add path to right
+				graph.AddEdge(i*mapWidth+j, i*mapWidth+j+1, 1)
+			}
+			if data[i+1][j] {
+				// add path to bottom
+				graph.AddEdge((i+1)*mapWidth+j, i*mapWidth+j, 1)
+			}
+		}
+	}
+	if DEBUG {
+		graph.Dump()
+	}
+
+	for turn := 0; turn < 1; turn++ {
 		if DEBUG {
-			fmt.Println("Starting turn", turn, units)
+			fmt.Println("Starting turn", turn)
 			printMap(data, units)
 		}
 
-		for _ /*k*/, unit := range units {
+		units.Each(func(key interface{}, value interface{}) {
+			unit := value.(Unit)
 			if unit.hp <= 0 {
-				continue // unit is dead, next
+				log.Fatal("Dead unit detected, should've been cleaned up")
 			}
-
-			// if in range, attack
-			// else move
-
-			// ineffective here
-			for _ /*ik*/, possibleCollision := range units {
-				if possibleCollision.id == unit.id || possibleCollision.hp <= 0 {
-					continue // ignores self and dead units
+			// move
+			closestEnemy := -1
+			graphs.DFS(graph, key, func(vertex graphs.Vertex, i *bool) {
+				vi := vertex.(int)
+				if cu, ok := units.Get(vi); ok {
+					if cu.(Unit).race != unit.race {
+						fmt.Println("enemy detected", vertex)
+						closestEnemy = vi
+						*i = true
+					}
+					return // can't go through other units
 				}
-				//if cart.x == possibleCollision.x && cart.y == possibleCollision.y {
-				//	// collision detected
-				//	break
-				//}
-			}
-		}
+			})
+		})
+
 		if DEBUG {
 			fmt.Println("Turn complete", turn, units)
 			printMap(data, units)
@@ -96,25 +108,23 @@ func absint(n int) int {
 }
 
 // Enumerate coordinates and print map
-func printMap(data [][]byte, units Units) {
+func printMap(data [][]bool, units *treemap.Map) {
 	if len(data) == 0 {
 		fmt.Println("-EMPTY MAP-")
 		return
 	}
 
-	cid := 0
-	ct := units[cid]
 	for i := 0; i < len(data); i++ {
-		rowUnits := Units{}
+		var rowUnits []Unit
 		for j := 0; j < len(data[i]); j++ {
-			if ct.x == j && ct.y == i {
-				rowUnits = append(rowUnits, Unit{ct.id, j, i, ct.hp, ct.race})
-				if cid+1 < len(units) {
-					cid++
-					ct = units[cid]
-				}
+			symb := byte('#')
+			if u, found := units.Get(len(data[0])*i + j); found {
+				rowUnits = append(rowUnits, u.(Unit))
+				symb = u.(Unit).race
+			} else if data[i][j] {
+				symb = '.'
 			}
-			fmt.Printf("%v", string(data[i][j]))
+			fmt.Print(string(symb))
 		}
 		if len(rowUnits) > 0 {
 			fmt.Print("  ", rowUnits)
