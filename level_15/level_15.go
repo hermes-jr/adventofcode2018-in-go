@@ -67,7 +67,7 @@ func main() {
 		graph.Dump()
 	}
 
-	for turn := 0; turn < 1; turn++ {
+	for turn := 0; turn < 100; turn++ {
 		if DEBUG {
 			fmt.Println("Starting turn", turn)
 			printMap(data, units)
@@ -75,22 +75,57 @@ func main() {
 
 		units.Each(func(key interface{}, value interface{}) {
 			unit := value.(Unit)
+			upos := key.(int)
 			if unit.hp <= 0 {
 				log.Fatal("Dead unit detected, should've been cleaned up")
 			}
-			// move
-			closestEnemy := -1
-			graphs.DFS(graph, key, func(vertex graphs.Vertex, i *bool) {
-				vi := vertex.(int)
-				if cu, ok := units.Get(vi); ok {
-					if cu.(Unit).race != unit.race {
-						fmt.Println("enemy detected", vertex)
-						closestEnemy = vi
-						*i = true
-					}
-					return // can't go through other units
+
+			// attack if in range
+			ti := -1
+			target := Unit{-1, 999, '-'}
+			if n, ok := units.Get(upos + mapWidth); ok && n.(Unit).race != unit.race { // bottom
+				ti = upos + mapWidth
+				target = n.(Unit)
+			}
+
+			if n, ok := units.Get(upos + 1); ok && n.(Unit).race != unit.race && n.(Unit).hp <= target.hp { // right
+				ti = upos + 1
+				target = n.(Unit)
+			}
+
+			if n, ok := units.Get(upos - 1); ok && n.(Unit).race != unit.race && n.(Unit).hp <= target.hp { // left
+				ti = upos - 1
+				target = n.(Unit)
+
+			}
+			if n, ok := units.Get(upos - mapWidth); ok && n.(Unit).race != unit.race && n.(Unit).hp <= target.hp { // top
+				ti = upos - mapWidth
+				target = n.(Unit)
+			}
+			if ti != -1 {
+				fmt.Println(unit, "has hostile neighbor to attack:", target)
+				target.hp -= attackPower
+				if target.hp <= 0 {
+					units.Remove(ti)
+				} else {
+					units.Put(ti, target)
 				}
-			})
+			} else {
+				/*
+					// move
+					closestEnemy := -1
+					graphs.DFS(graph, key, func(vertex graphs.Vertex, i *bool) {
+						vi := vertex.(int)
+						if cu, ok := units.Get(vi); ok {
+							if cu.(Unit).race != unit.race {
+								fmt.Println("enemy detected", vertex)
+								closestEnemy = vi
+								*i = true
+							}
+							return // can't go through other units
+						}
+					})*/
+			}
 		})
 
 		if DEBUG {
