@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-const DEBUG = false
+const DEBUG = true
 
 type forestMap [][]byte
 
@@ -32,7 +32,8 @@ func main() {
 		printMap(&data)
 	}
 
-	for step := 0; step < 1000000000; step++ {
+	loopDetected := false
+	for step := 0; !loopDetected; step++ {
 		nextStepData := make([][]byte, len(data))
 		tw := 0
 		tl := 0
@@ -72,11 +73,43 @@ func main() {
 		data = nextStepData
 		if DEBUG {
 			printMap(&data)
+			fmt.Printf("%8v %v\n", step, tw*tl)
 		}
 		if step == 9 {
 			fmt.Println("Result1:", tw*tl)
-
 		}
+		// todo: detect loop automatically
+		/*
+		loop:
+		38205 204516 // first repeating value, repeats every 28 steps, first seen at stepId = 573 (after 574 steps)
+		38206 206226 // 1
+		38207 209496 // 2
+		38208 206910 // 3
+		38209 213212 // 4
+		38210 213312 // 5
+		38211 213057 // 6 <= result 2 (1000000000 - 574) % 28 = 6
+		38212 211485
+		38213 213324
+		38214 209988
+		38215 210795
+		38216 208887
+		38217 206310
+		38218 200010
+		38219 197439
+		38220 191382
+		38221 190176
+		38222 187479
+		38223 181930
+		38224 183291
+		38225 186550
+		38226 186438
+		38227 189987
+		38228 190710
+		38229 194220
+		38230 193781
+		38231 201280
+		38232 203236
+		*/
 	}
 }
 
@@ -118,6 +151,7 @@ func printMap(data *forestMap) {
 		}
 		fmt.Println()
 	}
+	fmt.Println()
 }
 
 // Returns lesser of two int values
