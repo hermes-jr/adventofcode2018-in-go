@@ -95,7 +95,6 @@ func main() {
 		"banr": banr, "bori": bori, "borr": borr, "seti": seti, "setr": setr, "gtir": gtir, "gtri": gtri,
 		"gtrr": gtrr, "eqir": eqir, "eqri": eqri, "eqrr": eqrr}
 
-	// part1
 	scanner := bufio.NewScanner(infile)
 
 	scanner.Scan()
@@ -115,6 +114,7 @@ func main() {
 		prog = append(prog, Progline{opRaw[0], massiveAtoi(opRaw[1:])})
 	}
 
+	// part1
 	for ip := 0; ip < len(prog); ip++ {
 		registers[ipBound] = ip
 		op := prog[ip].operands
@@ -130,6 +130,36 @@ func main() {
 	}
 
 	fmt.Println("Result1", registers[0])
+
+	// part2
+	registers = []int{1, 0, 0, 0, 0, 0}
+	for ip := 0; ip < len(prog); ip++ {
+		if ip == 2 {
+			if DEBUG {
+				fmt.Println("bottleneck", registers)
+			}
+			trg := registers[2] // 10551432
+			for fct := 1; fct <= trg; fct++ {
+				if trg%fct == 0 {
+					registers[0] += fct
+				}
+			}
+			break
+		}
+		registers[ipBound] = ip
+		op := prog[ip].operands
+		fParam := make([]reflect.Value, 3)
+		fParam[0] = reflect.ValueOf(op[0])
+		fParam[1] = reflect.ValueOf(op[1])
+		fParam[2] = reflect.ValueOf(op[2])
+		reflect.ValueOf(funcs[prog[ip].cmd]).Call(fParam)
+		if DEBUG {
+			fmt.Println("regs after function", registers)
+		}
+		ip = registers[ipBound]
+	}
+
+	fmt.Println("Result2", registers[0]) // 27024480
 }
 
 func massiveAtoi(in []string) []int {
@@ -187,5 +217,11 @@ In detail, when running this program, the following events occur:
     The instruction pointer is 6, so the instruction seti 9 0 5 stores 9 into register 5. The instruction pointer is incremented, causing it to point outside the program, and so the program ends.
 
 What value is left in register 0 when the background process halts?
+
+--- Part Two ---
+
+A new background process immediately spins up in its place. It appears identical, but on closer inspection, you notice that this time, register 0 started with the value 1.
+
+What value is left in register 0 when this new background process halts?
 
 */
