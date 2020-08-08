@@ -1,31 +1,21 @@
 package main
 
 import (
-	"bufio"
+	. "../utils"
 	"container/list"
 	"fmt"
 	"log"
-	"os"
 )
 
 func main() {
-	fname := "input"
+	lines := ReadFile("input")
 	//fname := "input_test"
 	//fname := "input_test2"
-
-	file, err := os.Open(fname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
 
 	var tuples, triples int
 	data := list.New()
 
-	for scanner.Scan() {
-		unparsed := scanner.Text()
+	for _, unparsed := range lines {
 		data.PushBack(unparsed)
 		log.Println("Reading value", unparsed)
 		h2, h3 := count23(unparsed)
