@@ -1,9 +1,8 @@
 package main
 
 import (
-	"bufio"
+	. "../utils"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -37,30 +36,29 @@ func (p DistancePairs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 type Points []Point
 type Field [][]uint8
 
+const DEBUG = false
+
 func main() {
 	fname := "input"
 	//fname = "input_test"
 	distlimit := 10000
 	//distlimit = 32
 
-	file, _ := os.Open(fname)
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
+	lines := ReadFile(fname)
 
 	inData := Points{}
 
 	minX, minY, maxX, maxY := -1, -1, 0, 0
 
 	// scan input, find out "populated" area bounds
-	for pointNameCode := byte(65); scanner.Scan(); pointNameCode++ {
-		inputLine := scanner.Text()
-		fmt.Println(inputLine)
+	for pointNameCode, i := byte(65), 0; i < len(lines); pointNameCode++ {
+		inputLine := lines[i]
+		i++
 		re := regexp.MustCompile("^(\\d+), (\\d+)$")
 		match := re.FindStringSubmatch(inputLine)
 		y, _ := strconv.Atoi(match[1])
 		x, _ := strconv.Atoi(match[2])
-		inData = append(inData, Point{x, y, byte(pointNameCode)})
+		inData = append(inData, Point{x, y, pointNameCode})
 		if maxX < x {
 			maxX = x
 		}
@@ -77,11 +75,15 @@ func main() {
 			pointNameCode = 96 // jump from Z to a
 		}
 	}
-	fmt.Println(inData)
+	if DEBUG {
+		fmt.Println(inData)
+	}
 
 	fh := maxY - minY + 1
 	fw := maxX - minX + 1
-	fmt.Println("We get an area", fw, "by", fh, "coords", minX, maxX, minY, maxY)
+	if DEBUG {
+		fmt.Println("We get an area", fw, "by", fh, "coords", minX, maxX, minY, maxY)
+	}
 
 	// initialize region map
 	region := make(Field, fw)
@@ -90,7 +92,7 @@ func main() {
 	}
 
 	// find out who's on the frontier - for those elements areas are infinite
-	nonInfinites := make(map[byte]int)
+	nonInfinite := make(map[byte]int)
 	normalizedData := Points{}
 	for _, v := range inData {
 		v.x -= minX
@@ -98,12 +100,14 @@ func main() {
 		region[v.x][v.y] = v.name
 		normalizedData = append(normalizedData, v)
 		if !(v.x == 0 || v.x == fw-1 || v.y == 0 || v.y == fh-1) {
-			nonInfinites[v.name] = 0
+			nonInfinite[v.name] = 0
 		}
 	}
 	inData = normalizedData
 	printField(region)
-	fmt.Println("Non-inf", nonInfinites)
+	if DEBUG {
+		fmt.Println("Non-inf", nonInfinite)
+	}
 
 	// n^3 is bad. but... make it work first
 	for i := 0; i < len(region); i++ {
@@ -111,25 +115,28 @@ func main() {
 			distData := DistancePairs{}
 			// find closest point or multiple points
 			for _, v := range inData {
-				dist := absint(v.x-i) + absint(v.y-j)
+				dist := absInt(v.x-i) + absInt(v.y-j)
 				distData = append(distData, DistancePair{dist, v.name})
 			}
 			sort.Sort(distData)
-			//fmt.Println("At point", i, j, "distances are", distData)
+			if DEBUG {
+				fmt.Println("At point", i, j, "distances are", distData)
+			}
 			if distData[0].dist == distData[1].dist {
 				region[i][j] = 35
 			} else {
 				region[i][j] = distData[0].name
-				nonInfinites[distData[0].name]++
+				nonInfinite[distData[0].name]++
 			}
 		}
 	}
 
-	printField(region)
-	fmt.Println("Non-inf updated", nonInfinites)
-
+	if DEBUG {
+		printField(region)
+		fmt.Println("Non-inf updated", nonInfinite)
+	}
 	result1 := 0
-	for _, v := range nonInfinites {
+	for _, v := range nonInfinite {
 		if v > result1 {
 			result1 = v
 		}
@@ -143,7 +150,7 @@ func main() {
 		for j := 0; j < len(region[i]); j++ {
 			var sumForPoint int
 			for _, v := range inData {
-				dist := absint(v.x-i) + absint(v.y-j)
+				dist := absInt(v.x-i) + absInt(v.y-j)
 				sumForPoint += dist
 				if sumForPoint >= distlimit {
 					region[i][j] = 0
@@ -159,7 +166,7 @@ func main() {
 
 }
 
-func absint(n int) int {
+func absInt(n int) int {
 	if n < 0 {
 		return -n
 	}
@@ -167,15 +174,17 @@ func absint(n int) int {
 }
 
 func printField(data Field) {
-	for _, xv := range data {
-		for _, xy := range xv {
-			if xy == 0 {
-				fmt.Print(".")
-			} else {
-				fmt.Print(string(xy))
+	if DEBUG {
+		for _, xv := range data {
+			for _, xy := range xv {
+				if xy == 0 {
+					fmt.Print(".")
+				} else {
+					fmt.Print(string(xy))
+				}
 			}
+			fmt.Println()
 		}
-		fmt.Println()
 	}
 }
 

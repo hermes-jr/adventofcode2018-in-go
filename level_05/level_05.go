@@ -7,8 +7,8 @@ import (
 )
 
 func main() {
-	fname := "input"
-	//fname = "input_test"
+	fname := "level_05/input"
+	//fname = "level_05/input_test"
 
 	// case offset = 32
 	//  d   a  b  A  c  C  a  C  B  A  c  C  c  a  D  A
@@ -16,7 +16,6 @@ func main() {
 
 	data, _ := ioutil.ReadFile(fname)
 	fmt.Println(data, "len", len(data))
-	copy(data, data)
 
 	result1 := getFoldedPolymerSize(data)
 	fmt.Println("Result1", result1)

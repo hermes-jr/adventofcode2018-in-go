@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bufio"
+	. "../utils"
 	"container/list"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -31,18 +30,13 @@ func main() {
 	fname := "input"
 	//fname = "input_test"
 
-	file, _ := os.Open(fname)
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
+	lines := ReadFile(fname)
 
 	records := Records{}
 
-	for scanner.Scan() {
-		unparsed := scanner.Text()
-		fmt.Println(unparsed)
-		uts := unparsed[1:17]
-		action := unparsed[19:]
+	for _, line := range lines {
+		uts := line[1:17]
+		action := line[19:]
 		ts, _ := time.Parse("2006-01-02 15:04", uts)
 		fmt.Println(ts, action)
 		records = append(records, Record{ts: ts, action: action})
