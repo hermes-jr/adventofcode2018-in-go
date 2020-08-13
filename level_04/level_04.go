@@ -27,10 +27,10 @@ func (r Records) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 func (r Records) Less(i, j int) bool { return r[i].ts.Before(r[j].ts) }
 
 func main() {
-	fname := "input"
-	//fname = "input_test"
+	file := "input"
+	//file = "input_test"
 
-	lines := ReadFile(fname)
+	lines := ReadFile(file)
 
 	records := Records{}
 
@@ -38,7 +38,7 @@ func main() {
 		uts := line[1:17]
 		action := line[19:]
 		ts, _ := time.Parse("2006-01-02 15:04", uts)
-		fmt.Println(ts, action)
+		IfDebugPrintln(ts, action)
 		records = append(records, Record{ts: ts, action: action})
 	}
 
@@ -46,7 +46,7 @@ func main() {
 
 	tStart := records[0].ts
 	tEnd := records[len(records)-1].ts.Add(24 * time.Hour).Truncate(24 * time.Hour) // Not included
-	fmt.Println("Range", tStart, tEnd)
+	IfDebugPrintln("Range", tStart, tEnd)
 
 	data := make(map[time.Time]ShiftCell)
 	guardsTotalSleep := make(map[int]*list.List)
@@ -81,19 +81,19 @@ func main() {
 
 		// Cover every minute of given timespan
 		for step := rangeStart; step.Before(rangeEnd); {
-			fmt.Println("Instant", step, currentGuardId, awake)
+			IfDebugPrintln("Instant", step, currentGuardId, awake)
 			data[step] = ShiftCell{currentGuardId, awake}
 
 			if step.Minute() == 59 {
-				step = step.Add(time.Duration(time.Hour*23 + time.Minute))
+				step = step.Add(time.Hour*23 + time.Minute)
 			} else {
-				step = step.Add(time.Duration(time.Minute))
+				step = step.Add(time.Minute)
 			}
 		}
 	}
 
 	var longestNapGuardId, longestNap int
-	fmt.Println(data)
+	IfDebugPrintln(data)
 	for k, v := range data {
 		if !v.awake {
 			guardsTotalSleep[v.guard].PushBack(k)
@@ -123,12 +123,12 @@ func main() {
 
 func getModeMinute(v *list.List) (int, int) {
 	var biggestSleepCountSeen, biggestSleepCountIdx int
-	var mins [60]int
+	var minutes [60]int
 	for gl := v.Front(); gl != nil; gl = gl.Next() {
 		ct := gl.Value.(time.Time)
-		mins[ct.Minute()]++
-		if mins[ct.Minute()] > biggestSleepCountSeen {
-			biggestSleepCountSeen = mins[ct.Minute()]
+		minutes[ct.Minute()]++
+		if minutes[ct.Minute()] > biggestSleepCountSeen {
+			biggestSleepCountSeen = minutes[ct.Minute()]
 			biggestSleepCountIdx = ct.Minute()
 		}
 	}

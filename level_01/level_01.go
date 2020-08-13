@@ -31,16 +31,16 @@ func main() {
 		data = data.Next()
 	}
 
-	var lastfreq int64 = 0
-	seenfreqs := map[int64]bool{}
+	var lastFrequency int64 = 0
+	seenFrequencies := map[int64]bool{}
 	for {
 		//fmt.Println("Iteration through ring", data.Value)
-		lastfreq += data.Value.(int64)
-		if seenfreqs[lastfreq] {
-			fmt.Println("Result2: ", lastfreq)
+		lastFrequency += data.Value.(int64)
+		if seenFrequencies[lastFrequency] {
+			fmt.Println("Result2: ", lastFrequency)
 			break
 		}
-		seenfreqs[lastfreq] = true
+		seenFrequencies[lastFrequency] = true
 		data = data.Next()
 	}
 }

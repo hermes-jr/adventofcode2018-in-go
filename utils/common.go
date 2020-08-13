@@ -2,11 +2,14 @@ package utils
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 )
+
+var DEBUG = false
 
 // ReadFile automatically appends level_XX directory and reads
 // file contents into slice of strings
@@ -15,9 +18,9 @@ func ReadFile(fileName string) []string {
 	if err != nil {
 		panic(err)
 	}
-	fname := filepath.Base(ex)
+	baseName := filepath.Base(ex)
 	re := regexp.MustCompile("(level_\\d\\d)")
-	match := re.FindStringSubmatch(fname)
+	match := re.FindStringSubmatch(baseName)
 
 	var result []string
 	result = make([]string, 0, 100)
@@ -38,4 +41,16 @@ func ReadFile(fileName string) []string {
 	}
 
 	return result
+}
+
+func IfDebugPrintln(a ...interface{}) {
+	if DEBUG {
+		fmt.Println(a...)
+	}
+}
+
+func IfDebugPrintf(format string, a ...interface{}) {
+	if DEBUG {
+		fmt.Printf(format, a...)
+	}
 }

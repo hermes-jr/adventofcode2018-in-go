@@ -1,9 +1,8 @@
 package main
 
 import (
-	"bufio"
+	. "../utils"
 	"fmt"
-	"os"
 	"sort"
 )
 
@@ -15,21 +14,18 @@ func main() {
 	workers := 5
 	//	workers = 2
 
-	file, _ := os.Open(fname)
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
+	lines := ReadFile(fname)
 
 	steps := make(map[int][]int)     // [StepID]:[Dependencies]
 	stepsCopy := make(map[int][]int) // steps will be mutated, saving current state for part 2
 
-	for scanner.Scan() {
-		inputLine := scanner.Text()
-		fmt.Println(inputLine)
+	for _, inputLine := range lines {
+		IfDebugPrintln(inputLine)
 		// Step N must be finished before step J can begin.
 		lb := int(inputLine[5])
 		la := int(inputLine[36])
-		fmt.Printf("%v -> needs -> %v\n", string(la), string(lb))
+
+		IfDebugPrintf("%s -> needs -> %s\n", string(rune(la)), string(rune(lb)))
 		if _, ok := steps[lb]; !ok {
 			steps[lb] = []int{}
 		}
@@ -38,22 +34,22 @@ func main() {
 		}
 		steps[la] = append(steps[la], lb)
 	}
-	fmt.Println("Steps read complete", steps)
+	IfDebugPrintln("Steps read complete", steps)
 
 	for k, v := range steps {
 		tmp := make([]int, len(v))
 		copy(tmp, steps[k])
 		stepsCopy[k] = tmp
 	}
-	fmt.Println("Steps copy for pt.2", stepsCopy)
+	IfDebugPrintln("Steps copy for pt.2", stepsCopy)
 
 	var result []byte
 	for len(steps) > 0 {
 		availableSteps := getNextAvailableStepsSorted(steps)
-		fmt.Println("Available steps", availableSteps)
+		IfDebugPrintln("Available steps", availableSteps)
 		for _, nextStep := range availableSteps {
 			result = append(result, byte(nextStep))
-			fmt.Println("Going to remove", nextStep, "from deps", steps)
+			IfDebugPrintln("Going to remove", nextStep, "from deps", steps)
 			removeStepFromDependencies(steps, nextStep)
 			delete(steps, nextStep)
 			break
@@ -64,29 +60,29 @@ func main() {
 	steps = stepsCopy
 
 	deadlines := make(map[int]int) // [StepID]:endOfConstructionTime
-	freeworkers := workers
+	freeWorkers := workers
 
 	elapsedTime := 0
 	for ; len(steps) > 0; elapsedTime++ {
 		for k, v := range deadlines {
 			if elapsedTime == v {
 				// remove current dependency from others
-				fmt.Println("Going to remove", k, "from deps", steps)
+				IfDebugPrintln("Going to remove", k, "from deps", steps)
 				removeStepFromDependencies(steps, k)
 				delete(steps, k) // step done
 				delete(deadlines, k)
-				freeworkers++
+				freeWorkers++
 			}
 		}
 
-		if freeworkers == 0 {
+		if freeWorkers == 0 {
 			continue // nobody free to take care of things at the moment
 		}
 		availableSteps := getNextAvailableStepsSortedDl(steps, deadlines)
-		availableSteps = availableSteps[0:minOf(freeworkers, len(availableSteps))] // assign to as many free workers as possible
-		freeworkers -= len(availableSteps)                                         // mark them busy
+		availableSteps = availableSteps[0:minOf(freeWorkers, len(availableSteps))] // assign to as many free workers as possible
+		freeWorkers -= len(availableSteps)                                         // mark them busy
 
-		fmt.Printf("time %v Available steps: %v, deadlines: %v\n", elapsedTime, availableSteps, deadlines)
+		IfDebugPrintf("time %v Available steps: %v, deadlines: %v\n", elapsedTime, availableSteps, deadlines)
 		// place in execution queue
 		for _, nextStep := range availableSteps {
 			deadlines[nextStep] = elapsedTime + timelag + (nextStep - 64) // ascii A = 65 but A costs 1 second; Z = 90, costs 26
@@ -127,11 +123,11 @@ func removeStepFromDependencies(data map[int][]int, step int) {
 	for zv, dataStepDependencies := range data {
 		for i, dependency := range dataStepDependencies {
 			if dependency == step {
-				fmt.Println(dataStepDependencies)
+				IfDebugPrintln(dataStepDependencies)
 				data[zv] = append(dataStepDependencies[:i], dataStepDependencies[i+1:]...)
 			}
 		}
-		fmt.Println("After cleanup:", data)
+		IfDebugPrintln("After cleanup:", data)
 	}
 }
 

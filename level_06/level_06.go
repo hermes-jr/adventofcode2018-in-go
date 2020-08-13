@@ -36,8 +36,6 @@ func (p DistancePairs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 type Points []Point
 type Field [][]uint8
 
-const DEBUG = false
-
 func main() {
 	fname := "input"
 	//fname = "input_test"
@@ -75,15 +73,11 @@ func main() {
 			pointNameCode = 96 // jump from Z to a
 		}
 	}
-	if DEBUG {
-		fmt.Println(inData)
-	}
+	IfDebugPrintln(inData)
 
 	fh := maxY - minY + 1
 	fw := maxX - minX + 1
-	if DEBUG {
-		fmt.Println("We get an area", fw, "by", fh, "coords", minX, maxX, minY, maxY)
-	}
+	IfDebugPrintln("We get an area", fw, "by", fh, "coords", minX, maxX, minY, maxY)
 
 	// initialize region map
 	region := make(Field, fw)
@@ -105,9 +99,7 @@ func main() {
 	}
 	inData = normalizedData
 	printField(region)
-	if DEBUG {
-		fmt.Println("Non-inf", nonInfinite)
-	}
+	IfDebugPrintln("Non-inf", nonInfinite)
 
 	// n^3 is bad. but... make it work first
 	for i := 0; i < len(region); i++ {
@@ -119,9 +111,7 @@ func main() {
 				distData = append(distData, DistancePair{dist, v.name})
 			}
 			sort.Sort(distData)
-			if DEBUG {
-				fmt.Println("At point", i, j, "distances are", distData)
-			}
+			IfDebugPrintln("At point", i, j, "distances are", distData)
 			if distData[0].dist == distData[1].dist {
 				region[i][j] = 35
 			} else {
@@ -131,10 +121,8 @@ func main() {
 		}
 	}
 
-	if DEBUG {
-		printField(region)
-		fmt.Println("Non-inf updated", nonInfinite)
-	}
+	printField(region)
+	IfDebugPrintln("Non-inf updated", nonInfinite)
 	result1 := 0
 	for _, v := range nonInfinite {
 		if v > result1 {
