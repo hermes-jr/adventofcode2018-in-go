@@ -1,136 +1,355 @@
 package main
 
+//goland:noinspection SpellCheckingInspection
 import (
-	"bufio"
+	. "../utils"
 	"fmt"
-	"github.com/emirpasic/gods/maps/treemap"
-	"github.com/thcyron/graphs"
-	"log"
-	"os"
+	orderedmap "github.com/wk8/go-ordered-map"
+	"sort"
 )
 
-const DEBUG = true
+type Point2d struct {
+	x int
+	y int
+}
+
+type Node struct {
+	point    Point2d
+	distance int
+	isRoot   bool
+}
 
 type Unit struct {
-	id, hp int
-	race   byte
+	id, hp   int
+	location Point2d
+	race     byte
 }
 
 const attackPower = 3
 const initialHp = 200
 
-func (data Unit) String() string {
-	return fmt.Sprintf("{%v (%v) id_%v}", string(data.race), data.hp, data.id)
+var levelMap [][]bool
+var units []Unit
+
+func (u Unit) String() string {
+	return fmt.Sprintf("{%v (%v) id_%v}", string(u.race), u.hp, u.id)
+}
+func (p Point2d) String() string {
+	return fmt.Sprintf("%v:%v", p.x, p.y)
+}
+
+func FindUnit(slice []Unit, val Unit) (int, bool) {
+	for i, item := range slice {
+		if item == val {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func FindPoint(slice []Point2d, val Point2d) (int, bool) {
+	for i, item := range slice {
+		if item == val {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func FindUnitByLocation(val Point2d) (int, bool) {
+	for i := range units {
+		if units[i].location == val && units[i].hp > 0 {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func IsPointInQueue(slice []Node, val Point2d) bool {
+	for _, item := range slice {
+		if item.point == val {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
-	fname := "input"
-	fname = "input_test1"
+	DEBUG = false
+	readInputFile()
+	fmt.Println("Result1", fight())
+}
 
-	file, _ := os.Open(fname)
-	defer file.Close()
-	var data [][]bool
+func fight() int {
+	turns := 0
+	IfDebugPrintln("Initial map:")
+	printMap(levelMap, units)
 
-	scanner := bufio.NewScanner(file)
+	for ; ; turns++ {
+		IfDebugPrintln("Starting turn", turns+1)
 
-	units := treemap.NewWithIntComparator()
+		end := playTurn()
 
-	var loc int
-	for rowNum, unitId := 0, 0; scanner.Scan(); rowNum++ {
-		data = append(data, []bool{})
-		inputLine := scanner.Bytes()
-		for _, v := range inputLine {
+		printMap(levelMap, units)
+		IfDebugPrintln("Turn complete", turns+1)
+
+		if end {
+			var healthSum int
+			IfDebugPrintf("Game ended, survivors: ")
+			for _, u := range units {
+				if u.hp > 0 {
+					IfDebugPrintf("%v", u)
+					healthSum += u.hp
+				}
+			}
+			IfDebugPrintln("Result1 formula:", healthSum, "*", turns)
+			return healthSum * turns
+		}
+	}
+}
+
+func playTurn() bool {
+
+	// Reorder units for current turn
+	sort.SliceStable(units, func(i, j int) bool {
+		if units[i].location.y != units[j].location.y {
+			return units[i].location.y < units[j].location.y
+		} else {
+			return units[i].location.x < units[j].location.x
+		}
+	})
+	IfDebugPrintln("Sorted units", units)
+
+	for unitId := range units {
+		if units[unitId].hp <= 0 {
+			continue
+		}
+		if unitAct(unitId) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func unitAct(unitId int) bool {
+	unit := units[unitId]
+	tryToReach := make(map[Point2d]bool)
+
+	// Filter out allies
+	enemies := append([]Unit(nil), units...)
+	n := 0
+	for id, x := range enemies {
+		if x.race != unit.race && units[id].hp > 0 {
+			enemies[n] = x
+			n++
+			for _, neighbor := range getNeighbors(x.location) {
+				if isWalkable(unit.location, neighbor) {
+					tryToReach[neighbor] = true
+				}
+			}
+		}
+	}
+	enemies = enemies[:n]
+	IfDebugPrintf("Targets for %v are: %v\n", unit, enemies)
+
+	// No living enemies left
+	if len(enemies) == 0 {
+		return true
+	}
+
+	tryToReachKeys := make([]Point2d, len(tryToReach))
+	i := 0
+	for k := range tryToReach {
+		tryToReachKeys[i] = k
+		i++
+	}
+	IfDebugPrintf("In range for %v are: %v\n", unit, tryToReachKeys)
+
+	if _, ok := FindPoint(tryToReachKeys, unit.location); !ok {
+		nextLocation, ok := nextStep(unit.location, tryToReachKeys)
+		if ok {
+			IfDebugPrintln("Moving", unit, "to", nextLocation)
+			units[unitId].location = nextLocation
+			IfDebugPrintln("Alive units:", units)
+		}
+	}
+
+	// Attack if possible
+	var killable []Unit
+	for _, neighbor := range getNeighbors(units[unitId].location) {
+		if id, ok := FindUnitByLocation(neighbor); ok && units[id].race != unit.race {
+			killable = append(killable, units[id])
+		}
+	}
+
+	if len(killable) > 0 {
+		// Attack weakest first, in reading order if there are multiple weakest
+		sort.SliceStable(killable, func(i, j int) bool {
+			if killable[i].hp != killable[j].hp {
+				return killable[i].hp < killable[j].hp
+			} else if killable[i].location.y == killable[j].location.y {
+				return killable[i].location.x < killable[j].location.x
+			} else {
+				return killable[i].location.y < killable[j].location.y
+			}
+		})
+		IfDebugPrintln("Targets for bashing:", killable)
+
+		idToKill, _ := FindUnit(units, killable[0])
+		units[idToKill].hp -= attackPower
+		if units[idToKill].hp <= 0 {
+			IfDebugPrintln(killable[0], "killed, remaining units:", units)
+		}
+	}
+	return false
+}
+
+func readInputFile() {
+	inputFile := "input"
+	//inputFile = "input_test5"
+
+	inputLines := ReadFile(inputFile)
+
+	for rowNum, unitId, loc := 0, 0, 0; rowNum < len(inputLines); rowNum++ {
+		levelMap = append(levelMap, []bool{})
+		inputLine := []byte(inputLines[rowNum])
+		for x, v := range inputLine {
 			if v == 'E' || v == 'G' {
-				units.Put(loc, Unit{unitId, initialHp, v})
+				units = append(units, Unit{unitId, initialHp, Point2d{x, rowNum}, v})
 				unitId++
 			}
-			data[rowNum] = append(data[rowNum], v != '#')
+			levelMap[rowNum] = append(levelMap[rowNum], v != '#')
 			loc++
 		}
 	}
+}
 
-	graph := graphs.NewGraph()
-	mapWidth := len(data[0])
-	for i := 0; i < len(data)-1; i++ {
-		for j := 0; j < mapWidth-1; j++ {
-			if data[i][j+1] {
-				// add path to right
-				graph.AddEdge(i*mapWidth+j, i*mapWidth+j+1, 1)
+// BFS with reading priority
+func nextStep(root Point2d, destinations []Point2d) (Point2d, bool) {
+	IfDebugPrintln("--- BFS ---")
+	var queue []Node
+	discovered := make(map[Point2d]bool)
+	discovered[root] = true
+
+	breadcrumbs := orderedmap.New()
+
+	queue = append(queue, Node{root, 0, false})
+	for ok := true; ok; ok = len(queue) > 0 {
+		curPos, dist := queue[0].point, queue[0].distance
+		queue = queue[1:] // dequeue
+		neighbors := getNeighbors(curPos)
+
+		IfDebugPrintln("Current position", curPos, "neighbors:", neighbors)
+
+		for _, neighbor := range neighbors {
+			if !isWalkable(curPos, neighbor) {
+				continue
 			}
-			if data[i+1][j] {
-				// add path to bottom
-				graph.AddEdge((i+1)*mapWidth+j, i*mapWidth+j, 1)
+			if v, ok := breadcrumbs.Get(neighbor); !ok || v.(Node).distance > (dist+1) {
+				breadcrumbs.Set(neighbor, Node{curPos, dist + 1, false})
 			}
+			if _, ok := discovered[neighbor]; ok {
+				continue
+			}
+			IfDebugPrintln("Searching", neighbor, "in", queue)
+			if !IsPointInQueue(queue, neighbor) {
+				queue = append(queue, Node{neighbor, dist + 1, false})
+				IfDebugPrintln("Not found, added:", queue)
+			}
+
+			discovered[curPos] = true
+			IfDebugPrintln("Discovered:", discovered)
 		}
 	}
+
+	minDist := -1
+	var minPoint Point2d
+
+	for pair := breadcrumbs.Oldest(); pair != nil; pair = pair.Next() {
+		if _, ok := FindPoint(destinations, pair.Key.(Point2d)); !ok {
+			// Path doesn't lead to an enemy
+			continue
+		}
+		dist := pair.Value.(Node).distance
+		if pair.Value.(Node).isRoot {
+			IfDebugPrintln("--- END BFS ---")
+			return Point2d{}, false
+		}
+		if minDist == -1 || // min not found yet
+			(dist < minDist || // shorter path
+				(dist == minDist && (pair.Key.(Point2d).y < minPoint.y || // same short path but lower in reading order
+					(pair.Key.(Point2d).y == minPoint.y && pair.Key.(Point2d).x < minPoint.x)))) {
+			minDist = dist
+			minPoint = pair.Key.(Point2d)
+		}
+	}
+
 	if DEBUG {
-		graph.Dump()
-	}
-
-	for turn := 0; turn < 1; turn++ {
-		if DEBUG {
-			fmt.Println("Starting turn", turn)
-			printMap(data, units)
-		}
-
-		units.Each(func(key interface{}, value interface{}) {
-			unit := value.(Unit)
-			if unit.hp <= 0 {
-				log.Fatal("Dead unit detected, should've been cleaned up")
-			}
-			// move
-			closestEnemy := -1
-			graphs.DFS(graph, key, func(vertex graphs.Vertex, i *bool) {
-				vi := vertex.(int)
-				if cu, ok := units.Get(vi); ok {
-					if cu.(Unit).race != unit.race {
-						fmt.Println("enemy detected", vertex)
-						closestEnemy = vi
-						*i = true
-					}
-					return // can't go through other units
-				}
-			})
-		})
-
-		if DEBUG {
-			fmt.Println("Turn complete", turn, units)
-			printMap(data, units)
+		for pair := breadcrumbs.Oldest(); pair != nil; pair = pair.Next() {
+			fmt.Printf("%v => %v\n", pair.Key, pair.Value.(Node))
 		}
 	}
-}
 
-func absint(n int) int {
-	if n < 0 {
-		return -n
+	if minDist == -1 {
+		return minPoint, false
 	}
-	return n
+	IfDebugPrintln("Closest target is at", minDist, "hops:", minPoint)
+
+	// Track back
+	for z, _ := breadcrumbs.Get(minPoint); z.(Node).distance > 1; z, _ = breadcrumbs.Get(minPoint) {
+		minPoint = z.(Node).point
+	}
+
+	z, _ := breadcrumbs.Get(minPoint)
+	IfDebugPrintln("--- END BFS ---")
+	return minPoint, !z.(Node).isRoot
 }
 
-// Enumerate coordinates and print map
-func printMap(data [][]bool, units *treemap.Map) {
+func isWalkable(curPos, point Point2d) bool {
+	// Walkable: self location, empty points, dead units
+	// Non-walkable: walls, live units
+	if _, occupied := FindUnitByLocation(point); point == curPos ||
+		(levelMap[point.y][point.x] && !occupied) {
+		return true
+	}
+	return false
+}
+
+// Get adjacent coordinates (in reading order!)
+func getNeighbors(p Point2d) [4]Point2d {
+	return [...]Point2d{{p.x, p.y - 1}, {p.x - 1, p.y}, {p.x + 1, p.y}, {p.x, p.y + 1}}
+}
+
+// Print map with units
+func printMap(data [][]bool, units []Unit) {
+	if !DEBUG {
+		return
+	}
+	fmt.Println()
 	if len(data) == 0 {
 		fmt.Println("-EMPTY MAP-")
 		return
 	}
 
-	for i := 0; i < len(data); i++ {
+	for y := 0; y < len(data); y++ {
 		var rowUnits []Unit
-		for j := 0; j < len(data[i]); j++ {
-			symb := byte('#')
-			if u, found := units.Get(len(data[0])*i + j); found {
-				rowUnits = append(rowUnits, u.(Unit))
-				symb = u.(Unit).race
-			} else if data[i][j] {
-				symb = '.'
+		for x := 0; x < len(data[y]); x++ {
+			symbol := byte('#')
+			if u, found := FindUnitByLocation(Point2d{x, y}); found {
+				rowUnits = append(rowUnits, units[u])
+				symbol = units[u].race
+			} else if data[y][x] {
+				symbol = '.'
 			}
-			fmt.Print(string(symb))
+			fmt.Print(string(symbol))
 		}
 		if len(rowUnits) > 0 {
 			fmt.Print("  ", rowUnits)
 		}
 		fmt.Println()
 	}
+	fmt.Println()
 }
 
 /*
