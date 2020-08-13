@@ -26,6 +26,9 @@ type Unit struct {
 }
 
 const attackPower = 3
+
+var elfPower = attackPower
+
 const initialHp = 200
 
 var levelMap [][]bool
@@ -77,10 +80,22 @@ func IsPointInQueue(slice []Node, val Point2d) bool {
 func main() {
 	DEBUG = false
 	readInputFile()
-	fmt.Println("Result1", fight())
+	r1, _ := fight(true)
+	fmt.Println("Result1", r1)
+
+	for i := attackPower + 1; i < 300; i++ {
+		elfPower = i
+		readInputFile()
+		r2, elfCasualties := fight(true)
+		if !elfCasualties {
+			println("Result2", r2)
+			break
+		}
+		IfDebugPrintln("Power", i, r2, elfCasualties)
+	}
 }
 
-func fight() int {
+func fight(sacrificeElves bool) (int, bool) {
 	turns := 0
 	IfDebugPrintln("Initial map:")
 	printMap(levelMap, units)
@@ -88,27 +103,32 @@ func fight() int {
 	for ; ; turns++ {
 		IfDebugPrintln("Starting turn", turns+1)
 
-		end := playTurn()
+		end := playTurn(sacrificeElves)
 
 		printMap(levelMap, units)
 		IfDebugPrintln("Turn complete", turns+1)
 
 		if end {
 			var healthSum int
+			deadElves := false
 			IfDebugPrintf("Game ended, survivors: ")
 			for _, u := range units {
 				if u.hp > 0 {
 					IfDebugPrintf("%v", u)
 					healthSum += u.hp
+				} else {
+					if u.race == 'E' {
+						deadElves = true
+					}
 				}
 			}
 			IfDebugPrintln("Result1 formula:", healthSum, "*", turns)
-			return healthSum * turns
+			return healthSum * turns, deadElves
 		}
 	}
 }
 
-func playTurn() bool {
+func playTurn(sacrificeElves bool) bool {
 
 	// Reorder units for current turn
 	sort.SliceStable(units, func(i, j int) bool {
@@ -124,7 +144,7 @@ func playTurn() bool {
 		if units[unitId].hp <= 0 {
 			continue
 		}
-		if unitAct(unitId) {
+		if unitAct(unitId, sacrificeElves) {
 			return true
 		}
 	}
@@ -132,7 +152,7 @@ func playTurn() bool {
 	return false
 }
 
-func unitAct(unitId int) bool {
+func unitAct(unitId int, sacrificeElves bool) bool {
 	unit := units[unitId]
 	tryToReach := make(map[Point2d]bool)
 
@@ -197,8 +217,15 @@ func unitAct(unitId int) bool {
 		IfDebugPrintln("Targets for bashing:", killable)
 
 		idToKill, _ := FindUnit(units, killable[0])
-		units[idToKill].hp -= attackPower
+		if unit.race == 'E' {
+			units[idToKill].hp -= elfPower
+		} else {
+			units[idToKill].hp -= attackPower
+		}
 		if units[idToKill].hp <= 0 {
+			if units[idToKill].race == 'E' && !sacrificeElves {
+				return true
+			}
 			IfDebugPrintln(killable[0], "killed, remaining units:", units)
 		}
 	}
@@ -210,6 +237,7 @@ func readInputFile() {
 	//inputFile = "input_test5"
 
 	inputLines := ReadFile(inputFile)
+	units = []Unit{}
 
 	for rowNum, unitId, loc := 0, 0, 0; rowNum < len(inputLines); rowNum++ {
 		levelMap = append(levelMap, []bool{})
