@@ -26,13 +26,14 @@ type Unit struct {
 }
 
 const attackPower = 3
-
-var elfPower = attackPower
-
 const initialHp = 200
 
 var levelMap [][]bool
 var units []Unit
+
+// Settings for part 2
+var elfPower = attackPower
+var sacrificeElves = true
 
 func (u Unit) String() string {
 	return fmt.Sprintf("{%v (%v) id_%v}", string(u.race), u.hp, u.id)
@@ -80,38 +81,78 @@ func IsPointInQueue(slice []Node, val Point2d) bool {
 func main() {
 	DEBUG = false
 	readInputFile()
-	r1, _ := fight(true)
+	r1, _ := fight()
 	fmt.Println("Result1", r1)
 
-	for i := attackPower + 1; i < 300; i++ {
-		elfPower = i
+	sacrificeElves = false
+
+	if DEBUG {
+		part2brute()
+	}
+
+	r2 := part2optimized()
+	fmt.Println("Result2", r2)
+}
+
+func part2optimized() int {
+	// Exponential search
+	upperBound := 4
+	for elfCasualties := true; elfCasualties; upperBound = upperBound * 2 {
+		elfPower = upperBound
 		readInputFile()
-		r2, elfCasualties := fight(true)
+		_, elfCasualties = fight()
+		IfDebugPrintf("Trying %v: %v\n", elfPower, elfCasualties)
+	}
+	lb := upperBound / 4
+	IfDebugPrintln("Bounds found:", lb, "-", upperBound)
+	// Binary search (upperBound/4 - upperBound/2)
+	r2 := 0
+	for lb <= upperBound {
+		m := (lb + upperBound) / 2
+		elfPower = m
+		readInputFile()
+		var elfCasualties bool
+		r2, elfCasualties = fight()
+		IfDebugPrintln(lb, upperBound, elfCasualties, r2, elfPower)
+		if elfCasualties {
+			lb = m + 1
+		} else {
+			upperBound = m - 1
+		}
+	}
+	return r2
+}
+
+// Part 2 solution bruteforce
+func part2brute() {
+	for ap := attackPower + 1; ; ap++ {
+		elfPower = ap
+		readInputFile()
+		r2, elfCasualties := fight()
 		if !elfCasualties {
-			println("Result2", r2)
+			fmt.Println("Result2", r2)
 			break
 		}
-		IfDebugPrintln("Power", i, r2, elfCasualties)
+		IfDebugPrintln("Power", ap, r2, elfCasualties)
 	}
 }
 
-func fight(sacrificeElves bool) (int, bool) {
-	turns := 0
+func fight() (int, bool) {
+	rounds := 0
 	IfDebugPrintln("Initial map:")
 	printMap(levelMap, units)
 
-	for ; ; turns++ {
-		IfDebugPrintln("Starting turn", turns+1)
+	for ; ; rounds++ {
+		IfDebugPrintf("Starting round %d, elf power %d\n", rounds+1, elfPower)
 
-		end := playTurn(sacrificeElves)
+		victoryRound := playRound()
 
 		printMap(levelMap, units)
-		IfDebugPrintln("Turn complete", turns+1)
 
-		if end {
+		if victoryRound {
 			var healthSum int
 			deadElves := false
-			IfDebugPrintf("Game ended, survivors: ")
+			IfDebugPrintf("Game over. Survivors: ")
 			for _, u := range units {
 				if u.hp > 0 {
 					IfDebugPrintf("%v", u)
@@ -122,13 +163,17 @@ func fight(sacrificeElves bool) (int, bool) {
 					}
 				}
 			}
-			IfDebugPrintln("Result1 formula:", healthSum, "*", turns)
-			return healthSum * turns, deadElves
+			IfDebugPrintln("\nOutcome formula:", healthSum, "*", rounds)
+			return healthSum * rounds, deadElves
+		} else {
+			// Report only complete rounds
+			IfDebugPrintln("Round", rounds+1, "complete")
 		}
 	}
 }
 
-func playTurn(sacrificeElves bool) bool {
+// Play one round. Returns true if ends prematurely
+func playRound() bool {
 
 	// Reorder units for current turn
 	sort.SliceStable(units, func(i, j int) bool {
@@ -144,7 +189,7 @@ func playTurn(sacrificeElves bool) bool {
 		if units[unitId].hp <= 0 {
 			continue
 		}
-		if unitAct(unitId, sacrificeElves) {
+		if unitAct(unitId) {
 			return true
 		}
 	}
@@ -152,7 +197,8 @@ func playTurn(sacrificeElves bool) bool {
 	return false
 }
 
-func unitAct(unitId int, sacrificeElves bool) bool {
+// Returns true if unit can't find any enemies, hence game ends
+func unitAct(unitId int) bool {
 	unit := units[unitId]
 	tryToReach := make(map[Point2d]bool)
 
@@ -226,34 +272,13 @@ func unitAct(unitId int, sacrificeElves bool) bool {
 			if units[idToKill].race == 'E' && !sacrificeElves {
 				return true
 			}
-			IfDebugPrintln(killable[0], "killed, remaining units:", units)
+			IfDebugPrintln(killable[0], "killed. Units:", units)
 		}
 	}
 	return false
 }
 
-func readInputFile() {
-	inputFile := "input"
-	//inputFile = "input_test5"
-
-	inputLines := ReadFile(inputFile)
-	units = []Unit{}
-
-	for rowNum, unitId, loc := 0, 0, 0; rowNum < len(inputLines); rowNum++ {
-		levelMap = append(levelMap, []bool{})
-		inputLine := []byte(inputLines[rowNum])
-		for x, v := range inputLine {
-			if v == 'E' || v == 'G' {
-				units = append(units, Unit{unitId, initialHp, Point2d{x, rowNum}, v})
-				unitId++
-			}
-			levelMap[rowNum] = append(levelMap[rowNum], v != '#')
-			loc++
-		}
-	}
-}
-
-// BFS with reading priority
+// Returns next best move coordinate. BFS with reading priority
 func nextStep(root Point2d, destinations []Point2d) (Point2d, bool) {
 	IfDebugPrintln("--- BFS ---")
 	var queue []Node
@@ -349,7 +374,7 @@ func getNeighbors(p Point2d) [4]Point2d {
 	return [...]Point2d{{p.x, p.y - 1}, {p.x - 1, p.y}, {p.x + 1, p.y}, {p.x, p.y + 1}}
 }
 
-// Print map with units
+// Print levelMap with units
 func printMap(data [][]bool, units []Unit) {
 	if !DEBUG {
 		return
@@ -378,6 +403,29 @@ func printMap(data [][]bool, units []Unit) {
 		fmt.Println()
 	}
 	fmt.Println()
+}
+
+// Reset levelMap and units, re-read input file
+func readInputFile() {
+	inputFile := "input"
+	//inputFile = "input_test6"
+
+	inputLines := ReadFile(inputFile)
+	units = []Unit{}
+	levelMap = [][]bool{}
+
+	for rowNum, unitId, loc := 0, 0, 0; rowNum < len(inputLines); rowNum++ {
+		levelMap = append(levelMap, []bool{})
+		inputLine := []byte(inputLines[rowNum])
+		for x, v := range inputLine {
+			if v == 'E' || v == 'G' {
+				units = append(units, Unit{unitId, initialHp, Point2d{x, rowNum}, v})
+				unitId++
+			}
+			levelMap[rowNum] = append(levelMap[rowNum], v != '#')
+			loc++
+		}
+	}
 }
 
 /*
@@ -669,4 +717,87 @@ Outcome: 20 * 937 = 18740
 
 What is the outcome of the combat described in your puzzle input?
 
+--- Part Two ---
+
+According to your calculations, the Elves are going to lose badly. Surely, you won't mess up the timeline too much if you give them just a little advanced technology, right?
+
+You need to make sure the Elves not only win, but also suffer no losses: even the death of a single Elf is unacceptable.
+
+However, you can't go too far: larger changes will be more likely to permanently alter spacetime.
+
+So, you need to find the outcome of the battle in which the Elves have the lowest integer attack power (at least 4) that allows them to win without a single death. The Goblins always have an attack power of 3.
+
+In the first summarized example above, the lowest attack power the Elves need to win without losses is 15:
+
+#######       #######
+#.G...#       #..E..#   E(158)
+#...EG#       #...E.#   E(14)
+#.#.#G#  -->  #.#.#.#
+#..G#E#       #...#.#
+#.....#       #.....#
+#######       #######
+
+Combat ends after 29 full rounds
+Elves win with 172 total hit points left
+Outcome: 29 * 172 = 4988
+
+In the second example above, the Elves need only 4 attack power:
+
+#######       #######
+#E..EG#       #.E.E.#   E(200), E(23)
+#.#G.E#       #.#E..#   E(200)
+#E.##E#  -->  #E.##E#   E(125), E(200)
+#G..#.#       #.E.#.#   E(200)
+#..E#.#       #...#.#
+#######       #######
+
+Combat ends after 33 full rounds
+Elves win with 948 total hit points left
+Outcome: 33 * 948 = 31284
+
+In the third example above, the Elves need 15 attack power:
+
+#######       #######
+#E.G#.#       #.E.#.#   E(8)
+#.#G..#       #.#E..#   E(86)
+#G.#.G#  -->  #..#..#
+#G..#.#       #...#.#
+#...E.#       #.....#
+#######       #######
+
+Combat ends after 37 full rounds
+Elves win with 94 total hit points left
+Outcome: 37 * 94 = 3478
+
+In the fourth example above, the Elves need 12 attack power:
+
+#######       #######
+#.E...#       #...E.#   E(14)
+#.#..G#       #.#..E#   E(152)
+#.###.#  -->  #.###.#
+#E#G#G#       #.#.#.#
+#...#G#       #...#.#
+#######       #######
+
+Combat ends after 39 full rounds
+Elves win with 166 total hit points left
+Outcome: 39 * 166 = 6474
+
+In the last example above, the lone Elf needs 34 attack power:
+
+#########       #########
+#G......#       #.......#
+#.E.#...#       #.E.#...#   E(38)
+#..##..G#       #..##...#
+#...##..#  -->  #...##..#
+#...#...#       #...#...#
+#.G...G.#       #.......#
+#.....G.#       #.......#
+#########       #########
+
+Combat ends after 30 full rounds
+Elves win with 38 total hit points left
+Outcome: 30 * 38 = 1140
+
+After increasing the Elves' attack power until it is just barely enough for them to win without any Elves dying, what is the outcome of the combat described in your puzzle input?
 */
