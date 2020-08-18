@@ -2,6 +2,7 @@ package main
 
 import (
 	. "../utils"
+	"container/list"
 	"fmt"
 	"github.com/thcyron/graphs"
 )
@@ -39,17 +40,34 @@ func main() {
 	follow(directions[1:len(directions)-1], entryPoint)
 	IfDebugPrintln("g", g)
 
+	// BFS
+	queue := list.New()
+	queue.PushFront(entryPoint)
+
+	visited := graphs.NewSet()
+	depths := map[Point2D]int{entryPoint: 0}
+
+	for f := queue.Front(); f != nil; f = queue.Front() {
+		v := queue.Remove(f).(Point2D)
+		visited.Add(v)
+		for he := range g.HalfedgesIter(v) {
+			if !visited.Contains(he.End) {
+				queue.PushBack(he.End)
+				depths[he.End.(Point2D)] = depths[v] + 1
+			}
+		}
+	}
+
+	IfDebugPrintln(depths)
+
 	result1 := 0
 	result2 := 0
-	for vertex := range g.VerticesIter() {
-		dk := graphs.Dijkstra(g, entryPoint, vertex)
-		curDist := dk.Len() - 1
-		if curDist >= 1000 {
+	for _, v := range depths {
+		if v >= 1000 {
 			result2++
 		}
-		IfDebugPrintf("Distance to %v: %v\n", vertex, curDist)
-		if curDist >= result1 {
-			result1 = curDist
+		if v >= result1 {
+			result1 = v
 		}
 	}
 
