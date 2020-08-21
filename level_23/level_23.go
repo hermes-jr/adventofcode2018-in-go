@@ -2,9 +2,9 @@ package main
 
 import (
 	. "../utils"
-	"container/heap"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 )
 
@@ -13,62 +13,14 @@ type Point3D struct {
 }
 
 type SearchMeta struct {
-	loc          []Point3D
-	maxSeenSoFar int
+	loc      Point3D
+	count    int
+	toOrigin int64
 }
 
 type Drone struct {
 	coordinate Point3D
 	rng        int64
-}
-
-// Priority queue (golang.org)
-// An Item is something we manage in a priority queue.
-type Item struct {
-	value    [2]int64 // The value of the item; arbitrary.
-	priority int64    // The priority of the item in the queue.
-	// The index is needed by update and is maintained by the heap.Interface methods.
-	index int // The index of the item in the heap.
-}
-
-// A PriorityQueue implements heap.Interface and holds Items.
-type PriorityQueue []*Item
-
-func (pq PriorityQueue) Len() int { return len(pq) }
-
-func (pq PriorityQueue) Less(i, j int) bool {
-	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
-	return pq[i].priority < pq[j].priority
-}
-
-func (pq PriorityQueue) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
-}
-
-func (pq *PriorityQueue) Push(x interface{}) {
-	n := len(*pq)
-	item := x.(*Item)
-	item.index = n
-	*pq = append(*pq, item)
-}
-
-func (pq *PriorityQueue) Pop() interface{} {
-	old := *pq
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	item.index = -1 // for safety
-	*pq = old[0 : n-1]
-	return item
-}
-
-// update modifies the priority and value of an Item in the queue.
-func (pq *PriorityQueue) update(item *Item, value [2]int64, priority int64) {
-	item.value = value
-	item.priority = priority
-	heap.Fix(pq, item.index)
 }
 
 func main() {
@@ -94,184 +46,159 @@ func main() {
 		return
 	}
 
-	minX, minY, minZ, maxX, maxY, maxZ, minR, maxR :=
-		drones[0].coordinate.x, drones[0].coordinate.y, drones[0].coordinate.z,
-		drones[0].coordinate.x, drones[0].coordinate.y, drones[0].coordinate.z,
-		drones[0].rng, drones[0].rng
 	var maxD Drone
 	for _, drone := range drones {
 		if drone.rng >= maxD.rng {
 			maxD = drone
 		}
-		minMax(&drone, &minX, &maxX, func(fd *Drone) int64 { return fd.coordinate.x })
-		minMax(&drone, &minY, &maxY, func(fd *Drone) int64 { return fd.coordinate.y })
-		minMax(&drone, &minZ, &maxZ, func(fd *Drone) int64 { return fd.coordinate.z })
-		minMax(&drone, &minR, &maxR, func(fd *Drone) int64 { return fd.rng })
 	}
 	IfDebugPrintln("Strongest:", maxD)
 	result1 := countInRangeOfStrongest(&drones, &maxD)
 	fmt.Println("Result1", result1)
 
-	result2a := queue(drones)
-	fmt.Println("Result2 (queue)", result2a)
-	// 22164451 low
-	// 92358683 incorrect
-	// 125532606 incorrect
-
-	result2b := dissectCube(min(min(minX, minY), minZ), max(max(maxX, maxY), maxZ), minR, drones)
-	fmt.Println("Result2 (cube dissect)", result2b)
+	result2 := dissectCube(drones)
+	fmt.Println("Result2", result2)
 }
 
-func queue(drones []Drone) int64 {
-	pq := make(PriorityQueue, len(drones)*2)
-	for i, drone := range drones {
-		distance := abs(drone.coordinate.x) + abs(drone.coordinate.y) + abs(drone.coordinate.z)
-		pq[i*2] = &Item{
-			value:    [2]int64{max(0, distance-drone.rng), 1},
-			priority: max(0, distance-drone.rng),
-			index:    i * 2,
+func dissectCube(drones []Drone) int64 {
+	dNum := len(drones)
+	xs := make([]int64, dNum)
+	ys := make([]int64, dNum)
+	zs := make([]int64, dNum)
+
+	for _, drone := range drones {
+		xs = append(xs, drone.coordinate.x)
+		ys = append(ys, drone.coordinate.y)
+		zs = append(zs, drone.coordinate.z)
+	}
+
+	sort.Slice(xs, func(i, j int) bool {
+		return xs[i] < xs[j]
+	})
+	sort.Slice(ys, func(i, j int) bool {
+		return ys[i] < ys[j]
+	})
+	sort.Slice(zs, func(i, j int) bool {
+		return zs[i] < zs[j]
+	})
+	var stepping int64
+	for stepping = 1; stepping < (xs[len(xs)-1]-xs[0]) || stepping < ys[len(ys)-1]-ys[0] || stepping < zs[len(zs)-1]-zs[0]; stepping *= 2 {
+	}
+	IfDebugPrintln("Dist", stepping)
+
+	span := 1
+	for ; span < len(drones); span *= 2 {
+	}
+	forcedCheck := 1
+	tried := make(map[int]SearchMeta)
+
+	var bestVal int64
+	bestCount := -1
+
+	for {
+		if _, ok := tried[forcedCheck]; !ok {
+			tried[forcedCheck] = search(&drones, &xs, &ys, &zs, stepping, forcedCheck)
 		}
-		pq[i*2+1] = &Item{
-			value:    [2]int64{distance + drone.rng + 1, -1},
-			priority: distance + drone.rng + 1,
-			index:    i*2 + 1,
+		testVal, testCount := tried[forcedCheck].toOrigin, tried[forcedCheck].count
+		IfDebugPrintln("Count:", testCount, "stepping", stepping)
+
+		if testCount == -1 {
+			if span > 1 {
+				span /= 2
+			}
+			forcedCheck = max(1, forcedCheck-span)
+		} else {
+			if bestCount == -1 || bestCount < testCount {
+				bestCount = testCount
+				bestVal = testVal
+			}
+			if span == 1 {
+				break
+			}
+			forcedCheck += span
 		}
 	}
-	heap.Init(&pq)
 
-	var count, maxCount, result int64
-
-	// Take the items out; they arrive in decreasing priority order.
-	for pq.Len() > 0 {
-		item := heap.Pop(&pq).(*Item)
-		fmt.Printf("%.2d:%v ", item.priority, item.value)
-		count += item.value[1]
-		if count > maxCount {
-			result = item.value[0]
-			maxCount = count
-		}
-	}
-	fmt.Println()
-	return result
+	IfDebugPrintln("Max drones visible:", bestCount)
+	return bestVal
 }
 
-func dissectCube(minD int64, maxD int64, minR int64, drones []Drone) int64 {
-	IfDebugPrintf("World [%v:%v:%v] - [%v:%v:%v]\n", minD, minD, minD, maxD, maxD, maxD)
+func search(drones *[]Drone, xs, ys, zs *[]int64, dist int64, forcedCount int) SearchMeta {
+	var atTarget []SearchMeta
+	IfDebugPrintln(xs, ys, zs)
+	for x := (*xs)[0]; x < (*xs)[len(*xs)-1]+1; x += dist {
+		for y := (*ys)[0]; y < (*ys)[len(*ys)-1]+1; y += dist {
+			for z := (*zs)[0]; z < (*zs)[len(*zs)-1]+1; z += dist {
 
-	// Smallest step to split volume (each coverage cube is guaranteed to be hit):
-	IfDebugPrintln("Minimum range", minR)
-
-	hotspots := search(&drones, &Point3D{minD, minD, minD},
-		&Point3D{maxD, maxD, maxD}, minR, 0)
-	IfDebugPrintln(hotspots)
-
-	result2 := distanceToOrigin(&hotspots.loc[0])
-	for _, p := range hotspots.loc {
-		distance := abs(p.x) + abs(p.y) + abs(p.z)
-		if distance < result2 {
-			result2 = distance
-		}
-	}
-	return result2
-}
-
-func search(drones *[]Drone, minCorner, maxCorner *Point3D, step int64, maxSeenSoFar int) SearchMeta {
-	var result []Point3D
-	for x := minCorner.x; x < maxCorner.x; x += step {
-		for y := minCorner.y; y < maxCorner.y; y += step {
-			for z := minCorner.z; z < maxCorner.z; z += step {
 				curLoc := Point3D{x, y, z}
-				reachable := pingDrones(drones, &curLoc)
-				if reachable > 0 {
-					IfDebugPrintln("At", curLoc, "there are", reachable, "drones reachable, stepping", step)
-				}
-				if reachable < maxSeenSoFar {
-					continue // nothing interesting in this quadrant
-				} else if reachable == maxSeenSoFar {
-					// if stepping is 1, chose closest to origin right here
-					if step == 1 && len(result) > 0 {
-						if distanceToOrigin(&curLoc) < distanceToOrigin(&result[0]) {
-							result = nil
-							result = append(result, curLoc)
+				IfDebugPrintln("Analyzing", curLoc)
+
+				count := 0
+				for _, drone := range *drones {
+					calc := mhd(&curLoc, &drone.coordinate)
+					if dist == 1 {
+						if calc <= drone.rng {
+							count++
 						}
 					} else {
-						result = append(result, curLoc)
+						if calc/dist-3 <= drone.rng/dist {
+							count++
+						}
 					}
-				} else {
-					// new best bet
-					result = nil
-					maxSeenSoFar = reachable
-					result = append(result, curLoc)
 				}
+
+				if count >= forcedCount {
+					atTarget = append(atTarget, SearchMeta{curLoc, count, distanceToOrigin(&curLoc)})
+				}
+
 			}
 		}
 	}
-	if step == 1 {
-		return SearchMeta{result, maxSeenSoFar}
+
+	for len(atTarget) > 0 {
+		var best SearchMeta
+		bestIdx := -1
+
+		for k, v := range atTarget {
+			if bestIdx == -1 || v.toOrigin < best.toOrigin {
+				best = v
+				bestIdx = k
+			}
+		}
+
+		if dist == 1 {
+			return best
+		} else {
+			xs := []int64{best.loc.x, best.loc.x + dist/2}
+			ys := []int64{best.loc.y, best.loc.y + dist/2}
+			zs := []int64{best.loc.z, best.loc.z + dist/2}
+			subResult := search(drones, &xs, &ys, &zs, dist/2, forcedCount)
+			if subResult.count == -1 {
+				atTarget[bestIdx] = atTarget[len(atTarget)-1] // Copy last element to index i.
+				atTarget[len(atTarget)-1] = SearchMeta{}      // Erase last element (write zero value).
+				atTarget = atTarget[:len(atTarget)-1]
+			} else {
+				return subResult
+			}
+		}
+
 	}
 
-	var lr, rr int64
-	for _, nc := range result {
-		if step%2 == 0 {
-			rr = step / 2
-			lr = rr
-		} else {
-			rr = step/2 + 1
-			lr = step / 2
-		}
-		stepDiv := max(1, step/2)
-		IfDebugPrintln("Going to investigate subsample around", nc, "radius", lr, "|", rr, "stepDiv", stepDiv)
-		subSample := search(drones, &Point3D{nc.x - lr, nc.y - lr, nc.z - lr},
-			&Point3D{nc.x + rr, nc.y + rr, nc.z + rr}, stepDiv, maxSeenSoFar)
-		IfDebugPrintln("Subsample investigated:", subSample, "ms: ", subSample.maxSeenSoFar, "stepDiv", stepDiv)
-		if subSample.maxSeenSoFar < maxSeenSoFar {
-			subSample.loc = nil
-			continue
-		} else if subSample.maxSeenSoFar == maxSeenSoFar {
-			result = append(result, subSample.loc...)
-		} else {
-			result = subSample.loc
-			maxSeenSoFar = subSample.maxSeenSoFar
-		}
+	return SearchMeta{
+		toOrigin: 0,
+		count:    -1,
 	}
-	return SearchMeta{result, maxSeenSoFar} // shouldn't happen (?)
 }
 
 func distanceToOrigin(point *Point3D) int64 {
 	return abs(point.x) + abs(point.y) + abs(point.z)
 }
 
-func max(a, b int64) int64 {
+func max(a, b int) int {
 	if a < b {
 		return b
 	} else {
 		return a
-	}
-}
-
-func min(a, b int64) int64 {
-	if a < b {
-		return a
-	} else {
-		return b
-	}
-}
-
-func pingDrones(drones *[]Drone, curLoc *Point3D) int {
-	result := 0
-	for _, drone := range *drones {
-		if mhd(curLoc, &drone.coordinate) <= drone.rng {
-			result++
-		}
-	}
-	return result
-}
-
-func minMax(drone *Drone, minParam *int64, maxParam *int64, getParam func(*Drone) int64) {
-	if getParam(drone) < *minParam {
-		*minParam = getParam(drone)
-	} else if getParam(drone) > *maxParam {
-		*maxParam = getParam(drone)
 	}
 }
 
