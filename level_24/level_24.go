@@ -69,8 +69,8 @@ func main() {
 		immuneSurvivors, _ = fight(groups)
 		IfDebugPrintf("Tried %v: %v\n", upperBound, immuneSurvivors)
 	}
-	lb := upperBound / 2
-	println("Bounds found:", lb, "-", upperBound)
+	lb := upperBound / 4
+	IfDebugPrintln("Bounds found:", lb, "-", upperBound)
 	// Binary search (upperBound/4 - upperBound/2)
 	r2 := 0
 	for lb <= upperBound {
@@ -78,7 +78,7 @@ func main() {
 		boost := m
 		groups := parseGroups(fileLines, boost)
 		r2, _ = fight(groups)
-		println("Binary:", lb, upperBound, r2)
+		IfDebugPrintln("Binary:", lb, upperBound, r2)
 		if r2 == 0 {
 			lb = m + 1
 		} else {
@@ -87,6 +87,7 @@ func main() {
 	}
 	fmt.Println("Result2:", r2)
 	// 2364 low
+	// 17852 high
 }
 
 func fight(groups []*Group) (int, int) {
@@ -168,11 +169,14 @@ func fight(groups []*Group) (int, int) {
 		}
 
 		// Endgame condition
+		if damagePerRound == 0 { // stale fight
+			return 0, 0
+		}
 		r := map[bool]int{true: 0, false: 0}
 		for _, g := range groups {
 			r[g.allegiance] = r[g.allegiance] + max(0, g.units)
 		}
-		if r[true] == 0 || r[false] == 0 || damagePerRound == 0 {
+		if r[true] == 0 || r[false] == 0 {
 			return r[true], r[false]
 		}
 		IfDebugPrintln("Proceeding to next turn")
