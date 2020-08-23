@@ -2,13 +2,16 @@ package main
 
 import (
 	. "../utils"
+	"fmt"
 	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 type Group struct {
+	id                int
 	allegiance        bool
 	units             int
 	hp                int
@@ -16,6 +19,28 @@ type Group struct {
 	damageType        string
 	receiveMultiplier map[string]int
 	initiative        int
+	target            *Group
+}
+
+func (data Group) String() string {
+	team := "Evil"
+	if data.allegiance {
+		team = "Good"
+	}
+	target := "None"
+	if data.target != nil {
+		target = strconv.Itoa(data.target.id)
+	}
+	return fmt.Sprintf("{id: %d, initiative: %d, "+
+		"team: %s, units: %d, hp: %d, damage: %d,"+
+		"damageType: %s, receiveMultiplier: %v, ep: %d, "+
+		"tgt: %s}",
+		data.id, data.initiative,
+		team, data.units, data.hp, data.damage,
+		data.damageType, data.receiveMultiplier,
+		data.units*data.damage,
+		target,
+	)
 }
 
 func getDamageMultiplier(g *Group, damageType *string) int {
@@ -32,6 +57,107 @@ func main() {
 	fileLines := ReadFile("input")
 	fileLines = ReadFile("input_test1")
 
+	groups := parseGroups(fileLines)
+
+	for {
+		// Endgame condition
+		r := map[bool]int{true: 0, false: 0}
+		for _, g := range groups {
+			r[g.allegiance] = r[g.allegiance] + max(0, g.units)
+		}
+		if r[true] == 0 || r[false] == 0 {
+			fmt.Println("Result1:", max(r[true], r[false]))
+			break
+		}
+
+		// Target selection
+		sort.Slice(groups, func(i, j int) bool {
+			teamA := groups[i]
+			teamB := groups[j]
+			epA := teamA.units * teamA.damage
+			epB := teamB.units * teamB.damage
+			if epA == epB {
+				return teamA.initiative > teamB.initiative
+			}
+			return epA > epB
+		})
+		IfDebugPrintln("Sorted to choose targets:", groups)
+
+		//decisions := make(map[int]int, len(groups))
+		chosen := make(map[int]bool)
+		for _, g := range groups {
+			if g.units <= 0 {
+				continue
+			}
+			targets := make([]*Group, len(groups))
+			copy(targets, groups)
+			sort.Slice(targets, func(i, j int) bool {
+				dealDamage1 := g.units * g.damage * getDamageMultiplier(targets[i], &g.damageType)
+				dealDamage2 := g.units * g.damage * getDamageMultiplier(targets[j], &g.damageType)
+				ep1 := targets[i].units * targets[i].damage
+				ep2 := targets[j].units * targets[j].damage
+				if dealDamage1 == dealDamage2 {
+					if ep1 == ep2 {
+						return targets[i].initiative > targets[j].initiative
+					}
+					return ep1 > ep2
+				}
+				return dealDamage1 > dealDamage2
+			})
+			//IfDebugPrintln("Sorted to take damage:", targets)
+			if DEBUG {
+				for _, t := range targets {
+					if t.allegiance == g.allegiance {
+						continue
+					}
+					fmt.Println("Group", g.id, "would deal defending group", t.id, g.units*g.damage*getDamageMultiplier(t, &g.damageType), "damage")
+				}
+			}
+
+			for _, t := range targets {
+				if _, alreadyChosen := chosen[t.id]; t.id == g.id || t.allegiance == g.allegiance ||
+					t.units <= 0 || alreadyChosen ||
+					g.units*g.damage*getDamageMultiplier(t, &g.damageType) == 0 {
+					continue
+				}
+				chosen[t.id] = true
+				g.target = t
+				break
+			}
+		}
+
+		// Attack
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].initiative > groups[j].initiative
+		})
+		IfDebugPrintln("Sorted to attack:", groups)
+
+		for _, g := range groups {
+			if g.units <= 0 || g.target == nil {
+				continue
+			}
+			target := g.target
+			dealDamage := g.damage * g.units * getDamageMultiplier(target, &g.damageType)
+			killedUnits := dealDamage / target.hp
+			IfDebugPrintln("Group", g.id, "attacks defending group", target.id, "killing", killedUnits, "units")
+			target.units = max(0, target.units-killedUnits)
+			g.target = nil
+		}
+
+		IfDebugPrintln("Proceeding to next turn")
+	}
+}
+
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func parseGroups(fileLines []string) []*Group {
+	var groups []*Group
+
 	// 3139 units each with 48062 hit points (immune to bludgeoning, slashing, fire; weak to cold)
 	//with an attack that does 28 bludgeoning damage at initiative 3
 	reLine := regexp.MustCompile(`^(?P<units>\d+) units each with (?P<hp>\d+) hit points (?P<special>\([^)]+\) )?with an attack that does (?P<damage>\d+) (?P<damageType>[a-z]+) damage at initiative (?P<initiative>\d+)$`)
@@ -39,6 +165,7 @@ func main() {
 	reWeak := regexp.MustCompile(`weak to ([^;)]+)`)
 
 	allegiance := true
+	id := 1
 	for _, line := range fileLines {
 		if line == "Immune System:" || line == "Infection:" {
 			continue
@@ -57,10 +184,12 @@ func main() {
 			grep[n] = match[i]
 		}
 		group := Group{
+			id:                id,
 			allegiance:        allegiance,
 			damageType:        grep["damageType"],
 			receiveMultiplier: make(map[string]int),
 		}
+		id++
 		group.units, _ = strconv.Atoi(grep["units"])
 		group.hp, _ = strconv.Atoi(grep["hp"])
 		group.damage, _ = strconv.Atoi(grep["damage"])
@@ -84,8 +213,11 @@ func main() {
 			}
 
 			IfDebugPrintln("Parsed group:", group)
+
+			groups = append(groups, &group)
 		}
 	}
+	return groups
 }
 
 /*
