@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bufio"
+	. "../utils"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
 )
-
-const DEBUG = false
 
 type Progline struct {
 	cmd      string
@@ -17,8 +14,9 @@ type Progline struct {
 }
 
 func main() {
-	infile, _ := os.Open("input")
-	defer infile.Close()
+	DEBUG = false
+
+	infile := ReadFile("input")
 
 	registers := make([]int, 6)
 
@@ -94,18 +92,15 @@ func main() {
 		"banr": banr, "bori": bori, "borr": borr, "seti": seti, "setr": setr, "gtir": gtir, "gtri": gtri,
 		"gtrr": gtrr, "eqir": eqir, "eqri": eqri, "eqrr": eqrr}
 
-	scanner := bufio.NewScanner(infile)
-
-	scanner.Scan()
-	ipBound, _ := strconv.Atoi(strings.Split(scanner.Text(), " ")[1])
+	ipBound, _ := strconv.Atoi(strings.Split(infile[0], " ")[1])
 	if DEBUG {
 		fmt.Println("IP bound to", ipBound)
 	}
 
-	prog := []Progline{}
+	var prog []Progline
 
-	for scanner.Scan() {
-		opRaw := strings.Split(scanner.Text(), " ")
+	for _, line := range infile[1:] {
+		opRaw := strings.Split(line, " ")
 		operands := massiveAtoi(opRaw[1:])
 		if DEBUG {
 			fmt.Println(opRaw[0], operands)
@@ -113,41 +108,39 @@ func main() {
 		prog = append(prog, Progline{opRaw[0], massiveAtoi(opRaw[1:])})
 	}
 
-	seenReg1Values := make(map[int]bool)
-	lastUnique := -1
-outerLoop:
-	for {
-		registers = make([]int, 6)
-		for ip := 0; ip < len(prog); ip++ {
-			registers[ipBound] = ip
-			op := prog[ip].operands
-			fParam := make([]reflect.Value, 3)
-			fParam[0] = reflect.ValueOf(op[0])
-			fParam[1] = reflect.ValueOf(op[1])
-			fParam[2] = reflect.ValueOf(op[2])
-			reflect.ValueOf(funcs[prog[ip].cmd]).Call(fParam)
-			ip = registers[ipBound]
-			if ip == 28 {
-				if DEBUG {
-					fmt.Println("ip", ip, "regs after function", registers)
-				}
-				if lastUnique == -1 {
-					fmt.Println("Result1", registers[1])
-				}
-				if _, ok := seenReg1Values[registers[1]]; ok {
-					fmt.Println("Result2", lastUnique)
-					break outerLoop
-				} else {
-					lastUnique = registers[1]
-					seenReg1Values[registers[1]] = true
-				}
-			}
+	lastVal := -1
+	var seen = make(map[int]bool)
+	for ip := 0; ip < len(prog); ip++ {
+		registers[ipBound] = ip
+		op := prog[ip].operands
+		fParam := make([]reflect.Value, 3)
+		fParam[0] = reflect.ValueOf(op[0])
+		fParam[1] = reflect.ValueOf(op[1])
+		fParam[2] = reflect.ValueOf(op[2])
+		reflect.ValueOf(funcs[prog[ip].cmd]).Call(fParam)
+		if DEBUG {
+			fmt.Println("regs after function", registers)
+
 		}
+		if ip == 29 { // eqrr 1 0 5, progline 29
+			rv := registers[1]
+			if lastVal == -1 {
+				fmt.Println("Result1:", rv)
+			}
+			if seen[rv] {
+				fmt.Println("Result2:", lastVal)
+				break
+			}
+			seen[rv] = true
+			lastVal = rv
+		}
+		ip = registers[ipBound]
 	}
+
 }
 
 func massiveAtoi(in []string) []int {
-	var result = []int{}
+	var result []int
 	for _, i := range in {
 		v, _ := strconv.Atoi(i)
 		result = append(result, v)
@@ -185,5 +178,4 @@ What is the lowest non-negative integer value for register 0 that causes the pro
 In order to determine the timing window for your underflow exploit, you also need an upper bound:
 
 What is the lowest non-negative integer value for register 0 that causes the program to halt after executing the most instructions? (The program must actually halt; running forever does not count as halting.)
-
 */

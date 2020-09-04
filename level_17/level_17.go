@@ -1,23 +1,219 @@
 package main
 
 import (
-	"bufio"
-	"os"
+	. "../utils"
+	"fmt"
+	"log"
+	"math"
+	"regexp"
+	"strconv"
 )
 
+type Point2D struct {
+	x, y int
+}
+
+var minX, minY, maxX, maxY = math.MaxInt32, math.MaxInt32, math.MinInt32, math.MinInt32
+
 func main() {
-	fname := "input"
-	fname = "input_test1"
+	DEBUG = false
+	inputLines := ReadFile("input")
+	//inputLines = ReadFile("input_test1")
+	//inputLines = ReadFile("input_test2")
+	//inputLines = ReadFile("input_test3")
+	//inputLines = ReadFile("input_test4")
+	//inputLines = ReadFile("input_test5")
 
-	file, _ := os.Open(fname)
-	defer file.Close()
-	var data [][]byte
+	data := parseInput(inputLines)
 
-	scanner := bufio.NewScanner(file)
+	IfDebugPrintln(Point2D{minX, minY}, ":", Point2D{maxX, maxY})
+	drawMap(&data)
 
-	for scanner.Scan() {
-		data = append(data, []byte{})
-		inputLine := scanner.Text()
+	for retry := true; retry; retry = flow(&data, Point2D{500, 1}) {
+	}
+
+	result1 := 0
+	result2 := 0
+	for k, v := range data {
+		if k.y > maxY || k.y < minY {
+			continue
+		}
+		switch v {
+		case '~':
+			result1++
+			result2++
+		case '|':
+			result1++
+		}
+	}
+	drawMap(&data)
+	fmt.Println("Result1", result1)
+	fmt.Println("Result2", result2)
+}
+
+func flow(data *map[Point2D]rune, entry Point2D) bool {
+	IfDebugPrintln("At", entry)
+	if entry.x < minX-1 || entry.x > maxX+1 || entry.y > maxY || entry.y < 0 ||
+		!canPass(data, &entry) {
+		return false // out of map bounds or impenetrable tile
+	}
+	(*data)[entry] = '|'
+	drawMap(data)
+
+	down := Point2D{entry.x, entry.y + 1}
+
+	// try down
+	if canPass(data, &down) {
+		return flow(data, down)
+	} else {
+		// check if can settle
+		lb, rb := entry.x, entry.x
+		for nx := entry.x; nx >= minX-1; nx-- {
+			if canPass(data, &Point2D{nx, entry.y + 1}) {
+				// water will fall on the left side
+				lb = -1
+				break
+			} else {
+				if canPass(data, &Point2D{nx, entry.y}) {
+					lb = nx // can flow left
+				} else {
+					break // can't flow left anymore
+				}
+			}
+		}
+		for nx := entry.x; nx <= maxX+1; nx++ {
+			if canPass(data, &Point2D{nx, entry.y + 1}) {
+				// water will fall on the right side
+				rb = -1
+				break
+			} else {
+				if canPass(data, &Point2D{nx, entry.y}) {
+					rb = nx // can flow right
+				} else {
+					break // can't flow right anymore
+				}
+			}
+		}
+		right := Point2D{entry.x + 1, entry.y}
+		left := Point2D{entry.x - 1, entry.y}
+		if lb != -1 && rb != -1 {
+			// both borders present, fill layer with settled water
+			IfDebugPrintf("Can settle layer; y:%d, x:%d..%d\n", entry.y, lb, rb)
+			drawMap(data)
+
+			for nx := lb; nx <= rb; nx++ {
+				(*data)[Point2D{nx, entry.y}] = '~' // settled
+			}
+
+			// Couldn't properly backtrack, so there's a dirty workaround:
+			// Dry everything, retry from the beginning
+			for k, v := range *data {
+				if v == '|' {
+					delete(*data, k)
+				}
+			}
+			return true
+		} else {
+			// one or both borders missing
+			retries := false
+			if getTileType(data, &left) != '|' {
+				retries = flow(data, left) || retries
+			}
+			if getTileType(data, &right) != '|' {
+				retries = flow(data, right) || retries
+			}
+			return retries
+		}
+	}
+}
+
+func canPass(data *map[Point2D]rune, t *Point2D) bool {
+	tileType := getTileType(data, t)
+	if tileType == '.' || tileType == '|' {
+		return true
+	}
+	return false
+}
+
+func getTileType(data *map[Point2D]rune, location *Point2D) rune {
+	if tileType, present := (*data)[*location]; !present {
+		return '.'
+	} else {
+		return tileType
+	}
+}
+
+func parseInput(inputLines []string) map[Point2D]rune {
+	data := make(map[Point2D]rune)
+
+	re := regexp.MustCompile(`^[x,y]=(\d+), [x,y]=(\d+)..(\d+)$`)
+
+	for _, line := range inputLines {
+		direction := line[0] == 'y' // true = horizontal, false = vertical
+
+		match := re.FindStringSubmatch(line)
+		if match == nil {
+			log.Fatal("Couldn't parse: ", line)
+		}
+
+		fixed, _ := strconv.Atoi(match[1])
+		rl, _ := strconv.Atoi(match[2])
+		rr, _ := strconv.Atoi(match[3])
+
+		if direction {
+			minY = min(minY, fixed)
+			maxY = max(maxY, fixed)
+			minX = min(minX, rl)
+			maxX = max(maxX, rr)
+		} else {
+			minX = min(minX, fixed)
+			maxX = max(maxX, fixed)
+			minY = min(minY, rl)
+			maxY = max(maxY, rr)
+		}
+
+		for i := rl; i <= rr; i++ {
+			if direction {
+				data[Point2D{i, fixed}] = '#'
+			} else {
+				data[Point2D{fixed, i}] = '#'
+			}
+		}
+	}
+	return data
+}
+
+func drawMap(data *map[Point2D]rune) {
+	if !DEBUG {
+		return
+	}
+	println()
+	for j := -1; j <= maxY-minY; j++ {
+		for i := -1; i <= maxX-minX+1; i++ {
+			curPoint := Point2D{i + minX, j + minY}
+			if i == 500-minX && j == -1 {
+				fmt.Print("+") // spring
+			} else {
+				fmt.Print(string(getTileType(data, &curPoint)))
+			}
+		}
+		fmt.Println()
+	}
+}
+
+func min(a int, b int) int {
+	if a < b {
+		return a
+	} else {
+		return b
+	}
+}
+
+func max(a int, b int) int {
+	if a > b {
+		return a
+	} else {
+		return b
 	}
 }
 

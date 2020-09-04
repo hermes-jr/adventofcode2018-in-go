@@ -1,170 +1,430 @@
 package main
 
+//goland:noinspection SpellCheckingInspection
 import (
-	"bufio"
+	. "../utils"
 	"fmt"
-	"github.com/emirpasic/gods/maps/treemap"
-	"github.com/thcyron/graphs"
-	"log"
-	"os"
+	orderedmap "github.com/wk8/go-ordered-map"
+	"sort"
 )
 
-const DEBUG = true
+type Point2d struct {
+	x int
+	y int
+}
+
+type Node struct {
+	point    Point2d
+	distance int
+	isRoot   bool
+}
 
 type Unit struct {
-	id, hp int
-	race   byte
+	id, hp   int
+	location Point2d
+	race     byte
 }
 
 const attackPower = 3
 const initialHp = 200
 
-func (data Unit) String() string {
-	return fmt.Sprintf("{%v (%v) id_%v}", string(data.race), data.hp, data.id)
+var levelMap [][]bool
+var units []Unit
+
+// Settings for part 2
+var elfPower = attackPower
+var sacrificeElves = true
+
+func (u Unit) String() string {
+	return fmt.Sprintf("{%v (%v) id_%v}", string(u.race), u.hp, u.id)
+}
+func (p Point2d) String() string {
+	return fmt.Sprintf("%v:%v", p.x, p.y)
+}
+
+func FindUnit(slice []Unit, val Unit) (int, bool) {
+	for i, item := range slice {
+		if item == val {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func FindPoint(slice []Point2d, val Point2d) (int, bool) {
+	for i, item := range slice {
+		if item == val {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func FindUnitByLocation(val Point2d) (int, bool) {
+	for i := range units {
+		if units[i].location == val && units[i].hp > 0 {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func IsPointInQueue(slice []Node, val Point2d) bool {
+	for _, item := range slice {
+		if item.point == val {
+			return true
+		}
+	}
+	return false
 }
 
 func main() {
-	fname := "input"
-	fname = "input_test1"
+	DEBUG = false
+	readInputFile()
+	r1, _ := fight()
+	fmt.Println("Result1", r1)
 
-	file, _ := os.Open(fname)
-	defer file.Close()
-	var data [][]bool
+	sacrificeElves = false
 
-	scanner := bufio.NewScanner(file)
-
-	units := treemap.NewWithIntComparator()
-
-	var loc int
-	for rowNum, unitId := 0, 0; scanner.Scan(); rowNum++ {
-		data = append(data, []bool{})
-		inputLine := scanner.Bytes()
-		for _, v := range inputLine {
-			if v == 'E' || v == 'G' {
-				units.Put(loc, Unit{unitId, initialHp, v})
-				unitId++
-			}
-			data[rowNum] = append(data[rowNum], v != '#')
-			loc++
-		}
-	}
-
-	graph := graphs.NewGraph()
-	mapWidth := len(data[0])
-	for i := 0; i < len(data)-1; i++ {
-		for j := 0; j < mapWidth-1; j++ {
-			if data[i][j+1] {
-				// add path to right
-				graph.AddEdge(i*mapWidth+j, i*mapWidth+j+1, 1)
-			}
-			if data[i+1][j] {
-				// add path to bottom
-				graph.AddEdge((i+1)*mapWidth+j, i*mapWidth+j, 1)
-			}
-		}
-	}
 	if DEBUG {
-		graph.Dump()
+		part2brute()
 	}
 
-	for turn := 0; turn < 100; turn++ {
-		if DEBUG {
-			fmt.Println("Starting turn", turn)
-			printMap(data, units)
+	r2 := part2optimized()
+	fmt.Println("Result2", r2)
+}
+
+func part2optimized() int {
+	// Exponential search
+	upperBound := 4
+	for elfCasualties := true; elfCasualties; upperBound = upperBound * 2 {
+		elfPower = upperBound
+		readInputFile()
+		_, elfCasualties = fight()
+		IfDebugPrintf("Trying %v: %v\n", elfPower, elfCasualties)
+	}
+	lb := upperBound / 4
+	IfDebugPrintln("Bounds found:", lb, "-", upperBound)
+	// Binary search (upperBound/4 - upperBound/2)
+	r2 := 0
+	for lb <= upperBound {
+		m := (lb + upperBound) / 2
+		elfPower = m
+		readInputFile()
+		var elfCasualties bool
+		r2, elfCasualties = fight()
+		IfDebugPrintln(lb, upperBound, elfCasualties, r2, elfPower)
+		if elfCasualties {
+			lb = m + 1
+		} else {
+			upperBound = m - 1
 		}
+	}
+	return r2
+}
 
-		units.Each(func(key interface{}, value interface{}) {
-			unit := value.(Unit)
-			upos := key.(int)
-			if unit.hp <= 0 {
-				log.Fatal("Dead unit detected, should've been cleaned up")
-			}
+// Part 2 solution bruteforce
+func part2brute() {
+	for ap := attackPower + 1; ; ap++ {
+		elfPower = ap
+		readInputFile()
+		r2, elfCasualties := fight()
+		if !elfCasualties {
+			fmt.Println("Result2", r2)
+			break
+		}
+		IfDebugPrintln("Power", ap, r2, elfCasualties)
+	}
+}
 
-			// attack if in range
-			ti := -1
-			target := Unit{-1, 999, '-'}
-			if n, ok := units.Get(upos + mapWidth); ok && n.(Unit).race != unit.race { // bottom
-				ti = upos + mapWidth
-				target = n.(Unit)
-			}
+func fight() (int, bool) {
+	rounds := 0
+	IfDebugPrintln("Initial map:")
+	printMap(levelMap, units)
 
-			if n, ok := units.Get(upos + 1); ok && n.(Unit).race != unit.race && n.(Unit).hp <= target.hp { // right
-				ti = upos + 1
-				target = n.(Unit)
-			}
+	for ; ; rounds++ {
+		IfDebugPrintf("Starting round %d, elf power %d\n", rounds+1, elfPower)
 
-			if n, ok := units.Get(upos - 1); ok && n.(Unit).race != unit.race && n.(Unit).hp <= target.hp { // left
-				ti = upos - 1
-				target = n.(Unit)
+		victoryRound := playRound()
 
-			}
-			if n, ok := units.Get(upos - mapWidth); ok && n.(Unit).race != unit.race && n.(Unit).hp <= target.hp { // top
-				ti = upos - mapWidth
-				target = n.(Unit)
-			}
-			if ti != -1 {
-				fmt.Println(unit, "has hostile neighbor to attack:", target)
-				target.hp -= attackPower
-				if target.hp <= 0 {
-					units.Remove(ti)
+		printMap(levelMap, units)
+
+		if victoryRound {
+			var healthSum int
+			deadElves := false
+			IfDebugPrintf("Game over. Survivors: ")
+			for _, u := range units {
+				if u.hp > 0 {
+					IfDebugPrintf("%v", u)
+					healthSum += u.hp
 				} else {
-					units.Put(ti, target)
+					if u.race == 'E' {
+						deadElves = true
+					}
 				}
+			}
+			IfDebugPrintln("\nOutcome formula:", healthSum, "*", rounds)
+			return healthSum * rounds, deadElves
+		} else {
+			// Report only complete rounds
+			IfDebugPrintln("Round", rounds+1, "complete")
+		}
+	}
+}
+
+// Play one round. Returns true if ends prematurely
+func playRound() bool {
+
+	// Reorder units for current turn
+	sort.SliceStable(units, func(i, j int) bool {
+		if units[i].location.y != units[j].location.y {
+			return units[i].location.y < units[j].location.y
+		} else {
+			return units[i].location.x < units[j].location.x
+		}
+	})
+	IfDebugPrintln("Sorted units", units)
+
+	for unitId := range units {
+		if units[unitId].hp <= 0 {
+			continue
+		}
+		if unitAct(unitId) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Returns true if unit can't find any enemies, hence game ends
+func unitAct(unitId int) bool {
+	unit := units[unitId]
+	tryToReach := make(map[Point2d]bool)
+
+	// Filter out allies
+	enemies := append([]Unit(nil), units...)
+	n := 0
+	for id, x := range enemies {
+		if x.race != unit.race && units[id].hp > 0 {
+			enemies[n] = x
+			n++
+			for _, neighbor := range getNeighbors(x.location) {
+				if isWalkable(unit.location, neighbor) {
+					tryToReach[neighbor] = true
+				}
+			}
+		}
+	}
+	enemies = enemies[:n]
+	IfDebugPrintf("Targets for %v are: %v\n", unit, enemies)
+
+	// No living enemies left
+	if len(enemies) == 0 {
+		return true
+	}
+
+	tryToReachKeys := make([]Point2d, len(tryToReach))
+	i := 0
+	for k := range tryToReach {
+		tryToReachKeys[i] = k
+		i++
+	}
+	IfDebugPrintf("In range for %v are: %v\n", unit, tryToReachKeys)
+
+	if _, ok := FindPoint(tryToReachKeys, unit.location); !ok {
+		nextLocation, ok := nextStep(unit.location, tryToReachKeys)
+		if ok {
+			IfDebugPrintln("Moving", unit, "to", nextLocation)
+			units[unitId].location = nextLocation
+			IfDebugPrintln("Alive units:", units)
+		}
+	}
+
+	// Attack if possible
+	var killable []Unit
+	for _, neighbor := range getNeighbors(units[unitId].location) {
+		if id, ok := FindUnitByLocation(neighbor); ok && units[id].race != unit.race {
+			killable = append(killable, units[id])
+		}
+	}
+
+	if len(killable) > 0 {
+		// Attack weakest first, in reading order if there are multiple weakest
+		sort.SliceStable(killable, func(i, j int) bool {
+			if killable[i].hp != killable[j].hp {
+				return killable[i].hp < killable[j].hp
+			} else if killable[i].location.y == killable[j].location.y {
+				return killable[i].location.x < killable[j].location.x
 			} else {
-				/*
-					// move
-					closestEnemy := -1
-					graphs.DFS(graph, key, func(vertex graphs.Vertex, i *bool) {
-						vi := vertex.(int)
-						if cu, ok := units.Get(vi); ok {
-							if cu.(Unit).race != unit.race {
-								fmt.Println("enemy detected", vertex)
-								closestEnemy = vi
-								*i = true
-							}
-							return // can't go through other units
-						}
-					})*/
+				return killable[i].location.y < killable[j].location.y
 			}
 		})
+		IfDebugPrintln("Targets for bashing:", killable)
 
-		if DEBUG {
-			fmt.Println("Turn complete", turn, units)
-			printMap(data, units)
+		idToKill, _ := FindUnit(units, killable[0])
+		if unit.race == 'E' {
+			units[idToKill].hp -= elfPower
+		} else {
+			units[idToKill].hp -= attackPower
+		}
+		if units[idToKill].hp <= 0 {
+			if units[idToKill].race == 'E' && !sacrificeElves {
+				return true
+			}
+			IfDebugPrintln(killable[0], "killed. Units:", units)
 		}
 	}
+	return false
 }
 
-func absint(n int) int {
-	if n < 0 {
-		return -n
+// Returns next best move coordinate. BFS with reading priority
+func nextStep(root Point2d, destinations []Point2d) (Point2d, bool) {
+	IfDebugPrintln("--- BFS ---")
+	var queue []Node
+	discovered := make(map[Point2d]bool)
+	discovered[root] = true
+
+	breadcrumbs := orderedmap.New()
+
+	queue = append(queue, Node{root, 0, false})
+	for ok := true; ok; ok = len(queue) > 0 {
+		curPos, dist := queue[0].point, queue[0].distance
+		queue = queue[1:] // dequeue
+		neighbors := getNeighbors(curPos)
+
+		IfDebugPrintln("Current position", curPos, "neighbors:", neighbors)
+
+		for _, neighbor := range neighbors {
+			if !isWalkable(curPos, neighbor) {
+				continue
+			}
+			if v, ok := breadcrumbs.Get(neighbor); !ok || v.(Node).distance > (dist+1) {
+				breadcrumbs.Set(neighbor, Node{curPos, dist + 1, false})
+			}
+			if _, ok := discovered[neighbor]; ok {
+				continue
+			}
+			IfDebugPrintln("Searching", neighbor, "in", queue)
+			if !IsPointInQueue(queue, neighbor) {
+				queue = append(queue, Node{neighbor, dist + 1, false})
+				IfDebugPrintln("Not found, added:", queue)
+			}
+
+			discovered[curPos] = true
+			IfDebugPrintln("Discovered:", discovered)
+		}
 	}
-	return n
+
+	minDist := -1
+	var minPoint Point2d
+
+	for pair := breadcrumbs.Oldest(); pair != nil; pair = pair.Next() {
+		if _, ok := FindPoint(destinations, pair.Key.(Point2d)); !ok {
+			// Path doesn't lead to an enemy
+			continue
+		}
+		dist := pair.Value.(Node).distance
+		if pair.Value.(Node).isRoot {
+			IfDebugPrintln("--- END BFS ---")
+			return Point2d{}, false
+		}
+		if minDist == -1 || // min not found yet
+			(dist < minDist || // shorter path
+				(dist == minDist && (pair.Key.(Point2d).y < minPoint.y || // same short path but lower in reading order
+					(pair.Key.(Point2d).y == minPoint.y && pair.Key.(Point2d).x < minPoint.x)))) {
+			minDist = dist
+			minPoint = pair.Key.(Point2d)
+		}
+	}
+
+	if DEBUG {
+		for pair := breadcrumbs.Oldest(); pair != nil; pair = pair.Next() {
+			fmt.Printf("%v => %v\n", pair.Key, pair.Value.(Node))
+		}
+	}
+
+	if minDist == -1 {
+		return minPoint, false
+	}
+	IfDebugPrintln("Closest target is at", minDist, "hops:", minPoint)
+
+	// Track back
+	for z, _ := breadcrumbs.Get(minPoint); z.(Node).distance > 1; z, _ = breadcrumbs.Get(minPoint) {
+		minPoint = z.(Node).point
+	}
+
+	z, _ := breadcrumbs.Get(minPoint)
+	IfDebugPrintln("--- END BFS ---")
+	return minPoint, !z.(Node).isRoot
 }
 
-// Enumerate coordinates and print map
-func printMap(data [][]bool, units *treemap.Map) {
+func isWalkable(curPos, point Point2d) bool {
+	// Walkable: self location, empty points, dead units
+	// Non-walkable: walls, live units
+	if _, occupied := FindUnitByLocation(point); point == curPos ||
+		(levelMap[point.y][point.x] && !occupied) {
+		return true
+	}
+	return false
+}
+
+// Get adjacent coordinates (in reading order!)
+func getNeighbors(p Point2d) [4]Point2d {
+	return [...]Point2d{{p.x, p.y - 1}, {p.x - 1, p.y}, {p.x + 1, p.y}, {p.x, p.y + 1}}
+}
+
+// Print levelMap with units
+func printMap(data [][]bool, units []Unit) {
+	if !DEBUG {
+		return
+	}
+	fmt.Println()
 	if len(data) == 0 {
 		fmt.Println("-EMPTY MAP-")
 		return
 	}
 
-	for i := 0; i < len(data); i++ {
+	for y := 0; y < len(data); y++ {
 		var rowUnits []Unit
-		for j := 0; j < len(data[i]); j++ {
-			symb := byte('#')
-			if u, found := units.Get(len(data[0])*i + j); found {
-				rowUnits = append(rowUnits, u.(Unit))
-				symb = u.(Unit).race
-			} else if data[i][j] {
-				symb = '.'
+		for x := 0; x < len(data[y]); x++ {
+			symbol := byte('#')
+			if u, found := FindUnitByLocation(Point2d{x, y}); found {
+				rowUnits = append(rowUnits, units[u])
+				symbol = units[u].race
+			} else if data[y][x] {
+				symbol = '.'
 			}
-			fmt.Print(string(symb))
+			fmt.Print(string(symbol))
 		}
 		if len(rowUnits) > 0 {
 			fmt.Print("  ", rowUnits)
 		}
 		fmt.Println()
+	}
+	fmt.Println()
+}
+
+// Reset levelMap and units, re-read input file
+func readInputFile() {
+	inputFile := "input"
+	//inputFile = "input_test6"
+
+	inputLines := ReadFile(inputFile)
+	units = []Unit{}
+	levelMap = [][]bool{}
+
+	for rowNum, unitId, loc := 0, 0, 0; rowNum < len(inputLines); rowNum++ {
+		levelMap = append(levelMap, []bool{})
+		inputLine := []byte(inputLines[rowNum])
+		for x, v := range inputLine {
+			if v == 'E' || v == 'G' {
+				units = append(units, Unit{unitId, initialHp, Point2d{x, rowNum}, v})
+				unitId++
+			}
+			levelMap[rowNum] = append(levelMap[rowNum], v != '#')
+			loc++
+		}
 	}
 }
 
@@ -457,4 +717,87 @@ Outcome: 20 * 937 = 18740
 
 What is the outcome of the combat described in your puzzle input?
 
+--- Part Two ---
+
+According to your calculations, the Elves are going to lose badly. Surely, you won't mess up the timeline too much if you give them just a little advanced technology, right?
+
+You need to make sure the Elves not only win, but also suffer no losses: even the death of a single Elf is unacceptable.
+
+However, you can't go too far: larger changes will be more likely to permanently alter spacetime.
+
+So, you need to find the outcome of the battle in which the Elves have the lowest integer attack power (at least 4) that allows them to win without a single death. The Goblins always have an attack power of 3.
+
+In the first summarized example above, the lowest attack power the Elves need to win without losses is 15:
+
+#######       #######
+#.G...#       #..E..#   E(158)
+#...EG#       #...E.#   E(14)
+#.#.#G#  -->  #.#.#.#
+#..G#E#       #...#.#
+#.....#       #.....#
+#######       #######
+
+Combat ends after 29 full rounds
+Elves win with 172 total hit points left
+Outcome: 29 * 172 = 4988
+
+In the second example above, the Elves need only 4 attack power:
+
+#######       #######
+#E..EG#       #.E.E.#   E(200), E(23)
+#.#G.E#       #.#E..#   E(200)
+#E.##E#  -->  #E.##E#   E(125), E(200)
+#G..#.#       #.E.#.#   E(200)
+#..E#.#       #...#.#
+#######       #######
+
+Combat ends after 33 full rounds
+Elves win with 948 total hit points left
+Outcome: 33 * 948 = 31284
+
+In the third example above, the Elves need 15 attack power:
+
+#######       #######
+#E.G#.#       #.E.#.#   E(8)
+#.#G..#       #.#E..#   E(86)
+#G.#.G#  -->  #..#..#
+#G..#.#       #...#.#
+#...E.#       #.....#
+#######       #######
+
+Combat ends after 37 full rounds
+Elves win with 94 total hit points left
+Outcome: 37 * 94 = 3478
+
+In the fourth example above, the Elves need 12 attack power:
+
+#######       #######
+#.E...#       #...E.#   E(14)
+#.#..G#       #.#..E#   E(152)
+#.###.#  -->  #.###.#
+#E#G#G#       #.#.#.#
+#...#G#       #...#.#
+#######       #######
+
+Combat ends after 39 full rounds
+Elves win with 166 total hit points left
+Outcome: 39 * 166 = 6474
+
+In the last example above, the lone Elf needs 34 attack power:
+
+#########       #########
+#G......#       #.......#
+#.E.#...#       #.E.#...#   E(38)
+#..##..G#       #..##...#
+#...##..#  -->  #...##..#
+#...#...#       #...#...#
+#.G...G.#       #.......#
+#.....G.#       #.......#
+#########       #########
+
+Combat ends after 30 full rounds
+Elves win with 38 total hit points left
+Outcome: 30 * 38 = 1140
+
+After increasing the Elves' attack power until it is just barely enough for them to win without any Elves dying, what is the outcome of the combat described in your puzzle input?
 */
