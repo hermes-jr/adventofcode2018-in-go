@@ -1,30 +1,35 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
-const GRID_SERIAL int = 8868
+const gridSerial int = 8868
+const sideSize int = 300
 
 type Point struct {
 	x, y, power int
 }
 
 func main() {
-	data := make([][]int, 301)
+	data := make([][]int, sideSize+1)
 	for i := range data {
-		data[i] = make([]int, 301)
+		data[i] = make([]int, sideSize+1)
 	}
 	for y := 1; y < len(data); y++ {
 		for x := 1; x < len(data[y]); x++ {
-			data[y][x] = getCellPowerLevel(x, y, GRID_SERIAL)
+			data[y][x] = getCellPowerLevel(x, y, gridSerial)
 		}
 	}
-	result1 := getMaxCharge(data, 3)
+
+	integral := getSummedAreaTable(data)
+	result1 := getMaxCharge(&integral, 3)
 	fmt.Printf("Result1: %v,%v\n", result1.x, result1.y)
 
-	result2 := getMaxCharge(data, 1)
+	result2 := getMaxCharge(&integral, 1)
 	r2Cs := 1
-	for cs := 2; cs <= 300; cs++ {
-		tr := getMaxCharge(data, cs)
+	for cs := 2; cs <= sideSize; cs++ {
+		tr := getMaxCharge(&integral, cs)
 		if tr.power > result2.power {
 			result2 = tr
 			r2Cs = cs
@@ -34,21 +39,31 @@ func main() {
 	fmt.Printf("Result2: %v,%v,%v\n", result2.x, result2.y, r2Cs)
 }
 
-// Unacceptably slow, must cache known values. A working brute force solution though
-func getMaxCharge(data [][]int, cellSize int) Point {
-	fmt.Println("Cell size", cellSize)
-	result := Point{0, 0, -5}
-	for y := 1; y < len(data)-cellSize-1; y++ {
-		for x := 1; x < len(data[y])-cellSize-1; x++ {
-			localPower := 0
-			for dy := 0; dy < cellSize; dy++ {
-				for dx := 0; dx < cellSize; dx++ {
-					localPower += data[y+dy][x+dx]
-				}
-			}
+func getSummedAreaTable(data [][]int) [][]int {
+	integral := make([][]int, sideSize+1)
+	for i := range integral {
+		integral[i] = make([]int, sideSize+1)
+	}
+	for y := 1; y < len(data); y++ {
+		for x := 1; x < len(data[y]); x++ {
+			integral[y][x] = data[y][x] + integral[y-1][x] + integral[y][x-1] - integral[y-1][x-1]
+		}
+	}
+
+	return integral
+}
+
+// Calculated fast now with summed area table
+func getMaxCharge(integral *[][]int, cellSize int) Point {
+	result := Point{0, 0, (*integral)[0][0]}
+	for y := 1; y < len(*integral)-cellSize-1; y++ {
+		for x := 1; x < len((*integral)[y])-cellSize-1; x++ {
+			x1 := x + cellSize
+			y1 := y + cellSize
+			localPower := (*integral)[y1][x1] + (*integral)[y][x] - (*integral)[y][x1] - (*integral)[y1][x]
 			if localPower > result.power {
-				result.x = x
-				result.y = y
+				result.x = x + 1
+				result.y = y + 1
 				result.power = localPower
 			}
 		}
