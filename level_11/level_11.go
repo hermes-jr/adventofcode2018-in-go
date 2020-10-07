@@ -56,8 +56,8 @@ func getSummedAreaTable(data [][]int) [][]int {
 // Calculated fast now with summed area table
 func getMaxCharge(integral *[][]int, cellSize int) Point {
 	result := Point{0, 0, (*integral)[0][0]}
-	for y := 1; y < len(*integral)-cellSize-1; y++ {
-		for x := 1; x < len((*integral)[y])-cellSize-1; x++ {
+	for y := 0; y < len(*integral)-cellSize-1; y++ {
+		for x := 0; x < len((*integral)[y])-cellSize-1; x++ {
 			x1 := x + cellSize
 			y1 := y + cellSize
 			localPower := (*integral)[y1][x1] + (*integral)[y][x] - (*integral)[y][x1] - (*integral)[y1][x]
